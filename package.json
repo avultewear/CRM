@@ -1,0 +1,11 @@
+{
+  "name": "avulte-crm",
+  "private": true,
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "test": "npm test -w apps/api",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "aceite": "node testes-aceite/aceite.mjs"
+  }
+}
