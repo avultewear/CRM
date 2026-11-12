@@ -22,6 +22,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const numero = (v: string | number | null) => (v === null ? null : Number(v));
 // Campos que são cifras dos Sócios: o Gerente não vê nem altera.
 const CAMPOS_CIFRA = ['comissaoPct', 'comissaoTeto', 'limiteDescontoPct'] as const;
+// Regra 7: metas são dos Sócios. O Gerente vê a meta de cada pessoa, mas não altera.
+const CAMPOS_SO_SOCIO = [...CAMPOS_CIFRA, 'metaMensal'] as const;
 const HASH_FALSO = bcrypt.hashSync('senha-que-nunca-confere', 4);
 
 function publico(u: Usuario, verCifras: boolean) {
@@ -51,6 +53,8 @@ const dadosPessoa = z.object({
   comissaoTeto: moeda,
   limiteDescontoPct: pct,
   editaEstoque: z.boolean(),
+  codigoVendedor: z.string().trim().toUpperCase()
+    .regex(/^[A-Z0-9]{3,12}$/, 'O código do vendedor tem de 3 a 12 letras ou números.').nullable(),
 }).strict();
 const novaPessoa = dadosPessoa.partial().required({ nome: true, email: true, senha: true, papel: true }).omit({ ativo: true });
 const alteracaoPessoa = dadosPessoa.partial();
@@ -95,12 +99,32 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
 
   app.get('/saude', (_req, res) => { res.json({ ok: true }); });
 
+  // Freio contra adivinhação de senha: 8 erros seguidos no mesmo e-mail travam a entrada por 15 minutos.
+  const LIMITE_ERROS = 8;
+  const JANELA_MS = 15 * 60 * 1000;
+  const erros = new Map<string, { quantos: number; ate: number }>();
+  const travado = (email: string) => {
+    const e = erros.get(email);
+    if (e && e.ate <= Date.now()) erros.delete(email);
+    return (erros.get(email)?.quantos ?? 0) >= LIMITE_ERROS;
+  };
+  const contarErro = (email: string) => {
+    const e = erros.get(email);
+    erros.set(email, { quantos: (e?.quantos ?? 0) + 1, ate: e?.ate ?? Date.now() + JANELA_MS });
+    if (erros.size > 5000) erros.clear();
+  };
+
   // ---- Login
   app.post('/auth/login', rota(async (req, res) => {
     const { email, senha } = z.object({ email: z.string().trim().toLowerCase(), senha: z.string() }).parse(req.body);
+    if (travado(email)) throw new ErroHttp(429, 'Muitas tentativas. Aguarde 15 minutos e tente de novo.');
     const usuario = await db.selectFrom('usuario').selectAll().where('email', '=', email).executeTakeFirst();
     const confere = await bcrypt.compare(senha, usuario?.senhaHash ?? HASH_FALSO);
-    if (!usuario || !usuario.ativo || !confere) throw new ErroHttp(401, 'E-mail ou senha incorretos.');
+    if (!usuario || !usuario.ativo || !confere) {
+      contarErro(email);
+      throw new ErroHttp(401, 'E-mail ou senha incorretos.');
+    }
+    erros.delete(email);
     const token = jwt.sign({ sub: usuario.id }, jwtSegredo, { expiresIn: '12h' });
     res.json({ token, usuario: publico(usuario, true), permissoes: permissoesDe(usuario.papel) });
   }));
@@ -121,7 +145,14 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
   function barrarGerente(autor: Usuario, dados: Record<string, unknown>, alvo?: Usuario) {
     if (pode(autor.papel, 'cifras.ver')) return;
     if (alvo?.papel === 'SOCIO' || dados.papel === 'SOCIO') throw new ErroHttp(403, 'Só um Sócio cadastra ou altera Sócios.');
-    if (CAMPOS_CIFRA.some((campo) => campo in dados)) throw new ErroHttp(403, 'Comissão, teto e limite de desconto são definidos pelos Sócios.');
+    if (CAMPOS_SO_SOCIO.some((campo) => campo in dados)) throw new ErroHttp(403, 'Meta, comissão, teto e limite de desconto são definidos pelos Sócios.');
+  }
+
+  /** O código do vendedor entra nos links de compra: não pode repetir. */
+  async function exigirCodigoLivre(codigo: string | null | undefined, menosId?: string) {
+    if (!codigo) return;
+    const dono = await db.selectFrom('usuario').select('id').where('codigoVendedor', '=', codigo).executeTakeFirst();
+    if (dono && dono.id !== menosId) throw new ErroHttp(409, 'Já existe uma pessoa com este código de vendedor.');
   }
 
   app.post('/equipe', autenticar, exigir('equipe.editar'), rota(async (req, res) => {
@@ -130,6 +161,7 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
     if (await db.selectFrom('usuario').select('id').where('email', '=', dados.email).executeTakeFirst()) {
       throw new ErroHttp(409, 'Já existe uma pessoa com este e-mail.');
     }
+    await exigirCodigoLivre(dados.codigoVendedor);
     const { senha, ...resto } = dados;
     const senhaHash = await bcrypt.hash(senha, 10);
     const criada = await db.transaction().execute(async (trx) => {
@@ -157,6 +189,7 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
       && await db.selectFrom('usuario').select('id').where('email', '=', dados.email).executeTakeFirst()) {
       throw new ErroHttp(409, 'Já existe uma pessoa com este e-mail.');
     }
+    if (dados.codigoVendedor !== alvo.codigoVendedor) await exigirCodigoLivre(dados.codigoVendedor, alvo.id);
 
     const { senha, ...campos } = dados;
     const mudancas: Record<string, unknown> = {};

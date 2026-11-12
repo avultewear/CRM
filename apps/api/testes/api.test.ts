@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { sql } from 'kysely';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { criarApp } from '../src/app.js';
@@ -71,6 +72,16 @@ describe('login', () => {
     expect(r.body.usuario.papel).toBe('GERENTE');
     expect(r.body.permissoes).toContain('equipe.ver');
     expect(r.body.permissoes).not.toContain('cifras.ver');
+  });
+});
+
+describe('freio de tentativas', () => {
+  test('8 senhas erradas seguidas travam a entrada daquele e-mail', async () => {
+    for (let i = 0; i < 8; i++) expect((await entrar('alvo@teste.local', 'errada')).status).toBe(401);
+    const travada = await entrar('alvo@teste.local', 'errada');
+    expect(travada.status).toBe(429);
+    // Os outros e-mails continuam entrando normalmente.
+    expect((await entrar('socio@teste.local')).status).toBe(200);
   });
 });
 
@@ -164,6 +175,23 @@ describe('equipe', () => {
       const r = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('GERENTE')).send(corpo);
       expect(r.status, JSON.stringify(corpo)).toBe(403);
     }
+  });
+  test('o Gerente vê a meta de cada pessoa, mas só um Sócio altera (regra 7)', async () => {
+    const nao = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('GERENTE')).send({ metaMensal: 9000 });
+    expect(nao.status).toBe(403);
+    const sim = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('SOCIO')).send({ metaMensal: 9000 });
+    expect(sim.status).toBe(200);
+    const lista = await request(app).get('/equipe').set(como('GERENTE'));
+    expect(lista.body.find((p: { id: string }) => p.id === id.VENDEDOR).metaMensal).toBe(9000);
+  });
+  test('o código do vendedor é único e fica em maiúsculas', async () => {
+    const r = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('GERENTE')).send({ codigoVendedor: 'ana01' });
+    expect(r.status).toBe(200);
+    expect(r.body.codigoVendedor).toBe('ANA01');
+    const repetido = await request(app).patch(`/equipe/${id.GERENTE}`).set(como('SOCIO')).send({ codigoVendedor: 'ANA01' });
+    expect(repetido.status).toBe(409);
+    const invalido = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('SOCIO')).send({ codigoVendedor: 'a b' });
+    expect(invalido.status).toBe(400);
   });
   test('cada campo alterado vai para a auditoria com o valor de antes e o de depois', async () => {
     const r = await request(app).patch(`/equipe/${id.VENDEDOR}`).set(como('SOCIO')).send({ comissaoPct: 6, funcao: 'Vendas' });
@@ -261,6 +289,10 @@ describe('registros imutáveis', () => {
   });
   test('a auditoria não aceita exclusão', async () => {
     await expect(db.deleteFrom('auditoria').execute()).rejects.toThrow(/imutavel/);
+  });
+  test('a auditoria e o histórico não aceitam ser esvaziados (TRUNCATE)', async () => {
+    await expect(sql`TRUNCATE auditoria`.execute(db)).rejects.toThrow(/imutavel/);
+    await expect(sql`TRUNCATE historico_parametro`.execute(db)).rejects.toThrow(/imutavel/);
   });
   test('o histórico de parâmetros não aceita alteração nem exclusão', async () => {
     await expect(db.updateTable('historicoParametro').set({ justificativa: 'x' }).execute()).rejects.toThrow(/imutavel/);
