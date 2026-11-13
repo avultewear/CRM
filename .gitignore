@@ -5,3 +5,4 @@ dist
 .env.local
 testes-aceite/capturas
 *.log
+demo/saida

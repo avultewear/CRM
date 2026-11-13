@@ -53,6 +53,12 @@ npm run aceite    # navegador, etapa 1: precisa da API e das telas rodando e das
 npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem leads
 ```
 
+## Demonstração clicável
+
+`npm run demo` entra no sistema rodando, preenche o banco de desenvolvimento com dados fictícios,
+retrata cada tela com três papéis (Sócio, Gerente e Vendedor) e monta uma página só, navegável, em
+`demo/saida/index.html`. Ela serve para acompanhar o visual; nada é gravado nela.
+
 ## Decisões desta etapa
 
 - **Banco sem Prisma.** O prompt pedia Prisma, mas os binários dele não puderam ser baixados no
