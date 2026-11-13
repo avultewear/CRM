@@ -38,6 +38,20 @@ ok('botão de gravar avisa que é demonstração', !(await p.$eval('#demo-aviso'
 await p.click('a.item-menu[href="/atendimento"]');
 await p.evaluate(() => [...document.querySelectorAll('.filtros .chip')].find(c => c.textContent.trim() === 'Recuperação').click());
 ok('filtro de fase esconde colunas', (await p.$$eval('.coluna-quadro', cs => cs.filter(c => c.style.display !== 'none').length)) === 1);
+// Etapa 4: clientes, segmentos, ficha e trocas
+await p.click('a.item-menu[href="/clientes"]');
+const telaClientes = await p.$eval('#demo-palco', e => e.textContent);
+ok('clientes: lista com segmentos VIP, Em risco e Inativo e trocas em andamento',
+  (await p.$$('[data-teste="cliente"]')).length >= 7 && ['VIP', 'Em risco', 'Inativo', 'Recorrente'].every(s => telaClientes.includes(s)) && (await p.$$('[data-teste="troca-aberta"]')).length === 2);
+await p.screenshot({ path: '/tmp/demo-8.png', fullPage: true });
+await p.click('[data-teste="cliente"][data-nome="Larissa Pinto"]');
+const fichaLarissa = await p.$eval('[data-teste="ficha-cliente"]', e => e.textContent);
+ok('abre a ficha da cliente com indicação, brinde e etiquetas', fichaLarissa.includes('Paula comprou') && fichaLarissa.includes('Squeeze Avulte') && fichaLarissa.includes('***.'));
+await p.screenshot({ path: '/tmp/demo-9.png' });
+await p.keyboard.press('Escape');
+await p.click('[data-teste="resolver-troca"]');
+ok('abre o modal de resolver a troca', (await p.$eval('.modal', e => e.textContent)).includes('Valor devolvido'));
+await p.keyboard.press('Escape');
 // Etapa 5: influenciadores, comissões e o espaço do influenciador
 await p.click('a.item-menu[href="/financeiro"]');
 ok('financeiro mostra pró-labore, comissões a pagar e aguardando',

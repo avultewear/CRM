@@ -59,7 +59,8 @@ async function semearDemo() {
   // Parâmetros de exemplo (os Sócios definem os reais em Metas).
   const exemplo = 'Valor de exemplo para a demonstração';
   for (const [chave, valor] of [['meta_faturamento_mensal', 20000], ['tempo_maximo_etapa_horas', 48], ['recuperacao_tentativas', 3], ['limite_desconto_pct', 10],
-    ['prolabore_pct', 10], ['comissao_vendedor_pct', 5], ['comissao_vendedor_teto', 800], ['comissao_influenciador_pct', 10], ['comissao_influenciador_teto', 500], ['prazo_troca_dias', 7]]) {
+    ['prolabore_pct', 10], ['comissao_vendedor_pct', 5], ['comissao_vendedor_teto', 800], ['comissao_influenciador_pct', 10], ['comissao_influenciador_teto', 500], ['prazo_troca_dias', 7],
+    ['segmento_em_risco_dias', 60], ['segmento_inativo_dias', 120], ['segmento_vip_pct', 20], ['recompra_dias', 45]]) {
     await socio('PUT', `/parametros/${chave}`, { valor, justificativa: exemplo });
   }
   // Segundo vendedor, para o rodízio e o filtro por vendedor.
@@ -127,7 +128,7 @@ async function semearDemo() {
       itens: [{ descricao: peca, quantidade: 1, precoTabela: tabela, preco: Math.round(tabela * 90) / 100 }], formaPagamento: 'PIX', cpf: cpfFicticio(n), cupom: 'BIA10',
     });
     await socio('POST', `/vendas-diretas/${v.id}/confirmar`, {});
-    comCupom.push({ venda: v.id, diasAtras });
+    comCupom.push({ venda: v.id, diasAtras, nome, cliente: o.cliente, dono });
   }
   // Uma comissão já paga e outra liberada, para o Financeiro mostrar os três momentos.
   const resumo = await socio('GET', '/financeiro/resumo');
@@ -136,6 +137,43 @@ async function semearDemo() {
   await socio('POST', `/ganhos/${daBia.id}/pagar`, {});
   const daAna = resumo.aguardando.find((g) => g.tipo === 'COMISSAO_VENDEDOR' && g.cliente === 'Gustavo Almeida');
   await socio('POST', `/ganhos/${daAna.id}/liberar`, {});
+
+  // Clientes, pós-venda e recompra (etapa 4)
+  const cli = Object.fromEntries(comCupom.map((c) => [c.nome.split(' ')[0], c]));
+  const recomprar = async (c, n, itens, extra = {}) => {
+    const o = (await gerente('POST', '/oportunidades', { nome: c.nome, telefone: c.cliente.telefone, canal: 'WHATSAPP', origem: 'ORGANICO', vendedorId: c.dono })).oportunidade;
+    const v = await gerente('POST', `/oportunidades/${o.id}/venda-direta`, { itens, formaPagamento: 'PIX', ...extra });
+    await socio('POST', `/vendas-diretas/${v.id}/confirmar`, {});
+    return v.id;
+  };
+  await gerente('PATCH', `/clientes/${cli.Larissa.cliente.id}`, { aceiteMensagens: true });
+  await gerente('PUT', `/clientes/${cli.Larissa.cliente.id}/etiquetas`, { etiquetas: ['CORRE', 'GRUPO', 'DIVULGADOR'] });
+  await gerente('PATCH', `/clientes/${cli.Marcos.cliente.id}`, { aceiteMensagens: true });
+  await gerente('PUT', `/clientes/${cli.Marcos.cliente.id}/etiquetas`, { etiquetas: ['TREINA'] });
+  await gerente('PUT', `/clientes/${cli.Natália.cliente.id}/etiquetas`, { etiquetas: ['CORRE'] });
+  // Larissa volta a comprar duas vezes (vira VIP) e indica a Paula.
+  await recomprar(cli.Larissa, 0, [{ descricao: 'Short Dupla Camada Running M', quantidade: 1, precoTabela: 129.9, preco: 129.9 }, { descricao: 'Regata Running M', quantidade: 1, precoTabela: 89.9, preco: 89.9 }]);
+  await recomprar(cli.Larissa, 0, [{ descricao: 'Jaqueta Training M', quantidade: 1, precoTabela: 199.9, preco: 199.9 }]);
+  const codigoLarissa = (await gerente('GET', `/clientes/${cli.Larissa.cliente.id}/ficha`)).codigoIndicacao;
+  const paula = await lead('Paula Freitas', { origem: 'INDICACAO', origemDetalhe: 'Indicada pela Larissa' }, ana.id);
+  const vendaPaula = await gerente('POST', `/oportunidades/${paula.id}/venda-direta`, {
+    itens: [{ descricao: 'Regata Running P', quantidade: 1, precoTabela: 89.9, preco: 89.9 }], formaPagamento: 'PIX', cpf: cpfFicticio(7), indicacao: codigoLarissa });
+  await socio('POST', `/vendas-diretas/${vendaPaula.id}/confirmar`, {});
+  await socio('POST', `/clientes/${cli.Larissa.cliente.id}/brindes`, { descricao: 'Squeeze Avulte', motivo: 'Indicou uma amiga', entregueEm: hoje(-1), custo: 14 });
+  // Marcos compra de novo (Recorrente) e pede troca de tamanho; a Natália pede devolução.
+  const vendaMarcos = await recomprar(cli.Marcos, 0, [{ descricao: 'Camiseta Técnica Running G', quantidade: 2, precoTabela: 119.9, preco: 119.9 }]);
+  const trocaMarcos = await gerente('POST', `/vendas-diretas/${vendaMarcos}/trocas`, { item: 'Camiseta Técnica Running G', quantidade: 1, motivo: 'TAMANHO', observacao: 'Quer trocar por GG' });
+  await gerente('POST', `/trocas/${trocaMarcos.id}/receber`, { estado: 'BOM' });
+  await gerente('POST', `/vendas-diretas/${cli.Natália.venda}/trocas`, { item: 'Regata Running P', quantidade: 1, motivo: 'ARREPENDIMENTO' });
+  // Clientes antigos, para os segmentos Em risco e Inativo aparecerem.
+  const antigos = [];
+  for (const [n, nome, dias] of [[8, 'Quésia Barros', 75], [9, 'Renato Dias', 150]]) {
+    const o = await lead(nome, { origem: 'ORGANICO' }, lucas.id);
+    await gerente('PATCH', `/clientes/${o.cliente.id}`, { aceiteMensagens: true });
+    const v = await gerente('POST', `/oportunidades/${o.id}/venda-direta`, { itens: [{ descricao: 'Regata Running G', quantidade: 1, precoTabela: 89.9, preco: 89.9 }], formaPagamento: 'DINHEIRO', cpf: cpfFicticio(n) });
+    await socio('POST', `/vendas-diretas/${v.id}/confirmar`, {});
+    antigos.push({ venda: v.id, dias });
+  }
 
   // Recuperação
   const helena = await lead('Helena Duarte', { canal: 'INSTAGRAM', origem: 'INFLUENCIADOR', origemDetalhe: 'Cupom de influenciadora', interesse: 'Jaqueta Training', tamanho: 'P' }, lucas.id);
@@ -157,6 +195,13 @@ async function semearDemo() {
   await banco.query(`UPDATE historico_etapa SET entrou_em = now() - interval '3 days' WHERE oportunidade_id = $1 AND saiu_em IS NULL`, [bruno.id]);
   await banco.query(`UPDATE atividade SET prazo = now() - interval '5 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [diego.id]);
   await banco.query(`UPDATE atividade SET prazo = now() + interval '2 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [helena.id]);
+  // Compras antigas: só a data da compra recua (os ganhos ficam fora do mês, como seria de verdade).
+  for (const { venda, dias } of antigos) {
+    await banco.query(`UPDATE venda_direta SET decidida_em = decidida_em - make_interval(days => $2), criado_em = criado_em - make_interval(days => $2) WHERE id = $1`, [venda, dias]);
+    await banco.query(`UPDATE ganho SET criado_em = criado_em - make_interval(days => $2), liberar_em = liberar_em - make_interval(days => $2),
+      competencia = to_char((criado_em - make_interval(days => $2)) AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') WHERE venda_direta_id = $1`, [venda, dias]);
+    await banco.query(`UPDATE atividade SET status = 'CANCELADA' WHERE sequencia = 'POS_COMPRA' AND referencia = $1`, [venda]);
+  }
   // Vendas com cupom em dias diferentes (sempre dentro do mês em andamento).
   for (const { venda, diasAtras } of comCupom) {
     const dias = Math.min(diasAtras, Number(hoje().slice(8)) - 1);
@@ -259,13 +304,42 @@ const EXTRAS = {
     const nomes = await pagina.$$eval('[data-teste="influenciador"]', (cs) => cs.map((c) => c.dataset.nome));
     for (const nome of nomes) {
       const dentro = `[data-teste="influenciador"][data-nome="${nome}"]`;
-      for (const [botao, chave] of [['alterar-influenciador', 'influenciador'], ['novo-cupom', 'cupom'], ['atualizar-posts', 'posts'], ['registrar-peca', 'peca']]) {
+      for (const [botao, chave] of [['alterar-influenciador', 'influenciador'], ['novo-cupom', 'cupom'], ['editar-cupom', 'cupom-editar'], ['atualizar-posts', 'posts'], ['registrar-peca', 'peca']]) {
         if (!(await pagina.$(`${dentro} [data-teste="${botao}"]`))) continue; // o Gerente não cria cupom
         await pagina.click(`${dentro} [data-teste="${botao}"]`);
         await pagina.waitForSelector('.modal');
         sobre[`modal:${chave}:${nome}`] = await retratoDoModal(pagina);
         await fecharTudo(pagina);
       }
+    }
+  },
+  '/clientes': async (pagina, sobre) => {
+    const abrirFicha = async (nome) => {
+      await pagina.click(`[data-teste="cliente"][data-nome="${nome}"]`);
+      await pagina.waitForFunction((n) => document.querySelector('[data-teste="ficha-cliente"] h2')?.textContent === n, {}, nome);
+    };
+    const nomes = await pagina.$$eval('[data-teste="cliente"]', (cs) => cs.map((c) => c.dataset.nome));
+    for (const nome of nomes) {
+      await abrirFicha(nome);
+      sobre[`painel:cliente:${nome}`] = await retratoDe(pagina, '[data-teste="ficha-cliente"]');
+      await fecharTudo(pagina);
+    }
+    // Os modais da ficha: um de cada vez, reabrindo a ficha (o Esc fecha a ficha junto).
+    for (const [botao, chave, pronto] of [['abrir-troca', 'modal:troca', 'salvar-troca'], ['novo-brinde', 'modal:brinde', 'salvar-brinde']]) {
+      await abrirFicha(nomes[0]);
+      if (await pagina.$(`[data-teste="ficha-cliente"] [data-teste="${botao}"]`)) {
+        await pagina.$eval(`[data-teste="ficha-cliente"] [data-teste="${botao}"]`, (b) => b.click());
+        await pagina.waitForSelector(`[data-teste="${pronto}"]`);
+        sobre[chave] = await retratoDoModal(pagina);
+      }
+      await fecharTudo(pagina);
+    }
+    for (const [botao, chave] of [['receber-troca', 'modal:receber-troca'], ['resolver-troca', 'modal:resolver-troca']]) {
+      if (!(await pagina.$(`[data-teste="${botao}"]`))) continue;
+      await pagina.click(`[data-teste="${botao}"]`);
+      await pagina.waitForSelector('.modal');
+      sobre[chave] = await retratoDoModal(pagina);
+      await fecharTudo(pagina);
     }
   },
   '/metricas': async (pagina, sobre) => {

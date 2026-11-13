@@ -1,9 +1,11 @@
+import { sql } from 'kysely';
 import type { Express } from 'express';
 import type { Selectable } from 'kysely';
 import { z } from 'zod';
 import { comoJson, type Banco, type Etapa, type TabelaCliente, type TabelaOportunidade } from './banco.js';
 import { mediana } from './calculo.js';
 import { cupomValido, gerarGanhos } from './ganhos.js';
+import { aoConfirmarVenda, quemIndicou } from './clientes.js';
 import { ErroHttp, type Ferramentas, type LinhaAuditoria, type Usuario } from './http.js';
 import { pode } from './papeis.js';
 
@@ -541,9 +543,10 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
 
   // ---- Atividades (tarefas): follow e lembretes
   app.get('/atividades', ...ver, rota(async (req, res) => {
+    // A tarefa de sequência é do cliente; as outras chegam a ele pela oportunidade.
     let consulta = db.selectFrom('atividade as a').leftJoin('oportunidade as o', 'o.id', 'a.oportunidadeId')
-      .leftJoin('cliente as c', 'c.id', 'o.clienteId').innerJoin('usuario as u', 'u.id', 'a.responsavelId')
-      .select(['a.id', 'a.tipo', 'a.titulo', 'a.mensagem', 'a.prazo', 'a.status', 'a.oportunidadeId', 'a.responsavelId',
+      .leftJoin('cliente as c', (j) => j.on(sql<boolean>`c.id = coalesce(o.cliente_id, a.cliente_id)`)).innerJoin('usuario as u', 'u.id', 'a.responsavelId')
+      .select(['a.id', 'a.tipo', 'a.titulo', 'a.mensagem', 'a.prazo', 'a.status', 'a.oportunidadeId', 'a.responsavelId', 'a.sequencia', 'a.clienteId',
         'u.nome as responsavel', 'c.nome as clienteNome', 'c.telefone as clienteTelefone'])
       .where('a.status', '=', 'ABERTA').orderBy('a.prazo').limit(200);
     if (!veTodos(req.usuario)) consulta = consulta.where('a.responsavelId', '=', req.usuario.id);
@@ -647,6 +650,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     formaPagamento: z.enum(['PIX', 'DINHEIRO']),
     cpf: z.string().trim().optional(),
     cupom: z.string().trim().max(20).nullable().optional(),
+    indicacao: z.string().trim().max(20).nullable().optional(),
   }).strict();
 
   app.post('/oportunidades/:id/venda-direta', ...ver, rota(async (req, res) => {
@@ -670,6 +674,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
       if (permitido !== null && descontoPct > permitido + 1e-9) throw new ErroHttp(422, 'Desconto acima do limite. Um Sócio pode liberar.');
     }
     if (!dados.cpf && !c.cpf) throw new ErroHttp(422, 'Informe o CPF do cliente: ele é obrigatório na venda.');
+    const indicadoPorId = dados.indicacao ? await quemIndicou(db, dados.indicacao, c.id) : null;
     const quando = new Date();
     const venda = await db.transaction().execute(async (trx) => {
       if (dados.cpf) await gravarCpf(trx, c, dados.cpf, req.usuario.id);
@@ -677,7 +682,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
       if (aguardando) throw new ErroHttp(409, 'Já existe uma venda direta desta oportunidade aguardando confirmação.');
       const v = await trx.insertInto('vendaDireta').values({
         oportunidadeId: o.id, clienteId: c.id, vendedorId: o.vendedorId, itens: comoJson(dados.itens), valorTabela, valor,
-        formaPagamento: dados.formaPagamento, lancadaPor: req.usuario.id, cupomId: cupom?.id ?? null,
+        formaPagamento: dados.formaPagamento, lancadaPor: req.usuario.id, cupomId: cupom?.id ?? null, indicadoPorId,
       }).returning('id').executeTakeFirstOrThrow();
       const de = o.etapa;
       const campos = {
@@ -733,6 +738,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
       }
       // Venda confirmada gera o pró-labore e as comissões (cada um até o seu teto).
       await gerarGanhos(trx, v.id, quando);
+      await aoConfirmarVenda(trx, v.id, quando);
       await auditar(trx, [
         { entidade: 'vendaDireta', entidadeId: v.id, acao: 'confirmar', campo: 'situacao', de: 'AGUARDANDO', para: 'CONFIRMADA', autorId: req.usuario.id },
         { entidade: 'oportunidade', entidadeId: o.id, acao: 'ganhar', campo: 'etapa', de: 'NEGOCIACAO', para: 'VENDA', autorId: req.usuario.id },

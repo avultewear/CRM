@@ -7,6 +7,9 @@ Entregue até aqui:
 - **Etapa 3 (Atendimento):** quadro com as 6 etapas, painel do lead, perdas com destino, rodízio,
   follow como tarefa e venda direta confirmada pelos Sócios. Relatório em `RELATORIO-ETAPA-3.md`.
 
+- **Etapa 4 (Clientes, pós-venda e recompra):** segmentos, ficha do cliente, código de indicação,
+  sequências como tarefa, trocas e devoluções e brindes, com a venda direta como fonte. Relatório em
+  `RELATORIO-ETAPA-4.md`.
 - **Etapa 5 (Cupons, comissões e influenciadores):** gestão de influenciadores, cupom na venda
   direta, pró-labore e comissões com teto e liberação, Financeiro dos Sócios e o espaço do
   influenciador. Por enquanto a fonte das vendas é a venda direta. Relatório em `RELATORIO-ETAPA-5.md`.
@@ -56,12 +59,13 @@ npm test          # API: usa um banco de TESTE (o nome precisa conter "teste") e
 npm run aceite    # navegador, etapa 1: precisa da API e das telas rodando e das pessoas do semear
 npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem leads
 npm run aceite:5  # navegador, etapa 5: banco recém-semeado; pode rodar logo depois dos outros dois
+npm run aceite:4  # navegador, etapa 4: logo depois do aceite:5, no mesmo banco (usa os clientes dele)
 ```
 
 ## Rotina do dia
 
 `POST /rotinas/dia`, com o cabeçalho `x-rotina-segredo` igual a `ROTINA_SEGREDO`, libera as
-comissões cujo prazo de troca venceu. Quando o sistema for publicado, um agendador chama essa rota
+comissões cujo prazo de troca venceu e cria as tarefas de recompra e de cliente em risco. Quando o sistema for publicado, um agendador chama essa rota
 uma vez por dia. Sem `ROTINA_SEGREDO` definido, a rota recusa todas as chamadas.
 
 ## Demonstração clicável

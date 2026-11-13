@@ -228,3 +228,12 @@ div.indicador { cursor: default; }
 div.indicador:hover { border-color: var(--borda); }
 a.chip { color: inherit; text-decoration: none; }
 .chip[aria-current='true'] { background: var(--destaque-fundo); color: var(--destaque-texto); border-color: transparent; }
+
+/* Ficha do cliente */
+.ficha-dados { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
+.ficha-dados > :nth-child(odd) { color: var(--texto-apagado, inherit); opacity: .75; }
+.compra { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borda); }
+.compra:last-child { border-bottom: 0; }
+.compra > div { min-width: 0; flex: 1; }
+.compra p { margin: 2px 0 0; }
+.compra .botao { flex-shrink: 0; white-space: nowrap; }

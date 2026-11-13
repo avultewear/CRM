@@ -123,6 +123,16 @@ try {
   registrar('O Sócio cria o cupom BIA10 com 10% de desconto',
     await fechouModal(socio) && await esperarTexto(socio, '[data-teste="cupom"]', 'BIA10') && (await texto(socio, '[data-teste="cupom"]')).includes('10% de desconto'));
 
+  await socio.click('[data-teste="editar-cupom"]');
+  await socio.waitForSelector('[data-teste="salvar-cupom"]');
+  await socio.$eval('[data-teste="validade-cupom"]', (campo) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(campo, '2099-12-31');
+    campo.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await socio.click('[data-teste="salvar-cupom"]');
+  registrar('O Sócio edita o cupom e define até quando ele vale',
+    await fechouModal(socio) && await esperarTexto(socio, '[data-teste="cupom"]', 'vale até 31/12/2099') && (await texto(socio, '[data-teste="cupom"]')).includes('Ativo'));
+
   await socio.click('[data-teste="registrar-peca"]');
   await socio.waitForSelector('[data-teste="salvar-peca"]');
   await socio.type('.modal input[name=descricao]', 'Regata Running M preta');

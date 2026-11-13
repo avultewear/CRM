@@ -167,7 +167,7 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
                     {gestao && <p className="apagado">Com {t.responsavel}</p>}
                   </div>
                   <div className="fila-acoes">
-                    {t.tipo === 'FOLLOW' && t.clienteTelefone && (
+                    {(t.tipo === 'FOLLOW' || t.tipo === 'SEQUENCIA') && t.clienteTelefone && (
                       <a className="botao pequeno" href={linkWhatsApp(t.clienteTelefone, t.mensagem)} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
                     )}
                     {t.tipo === 'FOLLOW' ? (

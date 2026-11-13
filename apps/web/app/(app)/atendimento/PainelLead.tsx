@@ -307,6 +307,8 @@ export function PainelLead({ id, versao, config, gestao, vendedores, fechar, aca
             if (cpf) corpo.cpf = cpf;
             const cupom = String(f.get('cupom') ?? '').trim();
             if (cupom) corpo.cupom = cupom;
+            const indicacao = String(f.get('indicacao') ?? '').trim();
+            if (indicacao) corpo.indicacao = indicacao;
             enviar(() => chamar('POST', `/oportunidades/${d.id}/venda-direta`, corpo), 'Venda lançada. Ela vira venda quando um Sócio confirmar.');
           }}>
             <p className="secundario">Exceção para quem paga fora do site. A venda só é confirmada por um Sócio.</p>
@@ -331,6 +333,10 @@ export function PainelLead({ id, versao, config, gestao, vendedores, fechar, aca
               <label className="campo">
                 <span>Cupom (opcional)</span>
                 <input name="cupom" maxLength={20} autoComplete="off" style={{ textTransform: 'uppercase' }} data-teste="cupom-venda" />
+              </label>
+              <label className="campo">
+                <span>Código de indicação (opcional)</span>
+                <input name="indicacao" maxLength={20} autoComplete="off" style={{ textTransform: 'uppercase' }} data-teste="indicacao-venda" />
               </label>
               {!d.cliente.temCpf && (
                 <label className="campo"><span>CPF do cliente (obrigatório na venda)</span><input name="cpf" inputMode="numeric" required placeholder="000.000.000-00" autoComplete="off" /></label>

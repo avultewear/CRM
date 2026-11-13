@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import { z } from 'zod';
 import type { Banco, TipoGanho } from './banco.js';
 import { ErroHttp, type Ferramentas, type LinhaAuditoria, type Usuario } from './http.js';
+import { gerarSequencias } from './clientes.js';
 import { pode } from './papeis.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -131,7 +132,7 @@ export function registrarGanhos(app: Express, { db, rota, autenticar, exigir, au
       db.selectFrom('cupom').select(['id', 'codigo', 'influenciadorId', 'descontoPct', 'comissaoPct', 'validade', 'ativo']).orderBy('codigo').execute(),
       // Todas as vendas confirmadas, em ordem: a primeira compra de cada cliente diz quem o trouxe.
       db.selectFrom('vendaDireta as v').leftJoin('cupom as c', 'c.id', 'v.cupomId')
-        .select(['c.influenciadorId', 'v.clienteId', 'v.valor']).where('v.situacao', '=', 'CONFIRMADA').orderBy('v.decididaEm').orderBy('v.criadoEm').execute(),
+        .select(['c.influenciadorId', 'v.clienteId', 'v.valor']).where('v.situacao', '=', 'CONFIRMADA').where('v.devolvidaEm', 'is', null).orderBy('v.decididaEm').orderBy('v.criadoEm').execute(),
       db.selectFrom('ganho').select(['influenciadorId', 'valor', 'situacao']).where('tipo', '=', 'COMISSAO_INFLUENCIADOR').where('situacao', '!=', 'CANCELADA').execute(),
       db.selectFrom('pecaEnviada').select(['id', 'influenciadorId', 'descricao', 'quantidade', 'custo', 'enviadaEm']).orderBy('enviadaEm', 'desc').execute(),
       db.selectFrom('combinadoPosts').select(['influenciadorId', 'mes', 'combinados', 'feitos']).where('mes', '=', mes).execute(),
@@ -247,7 +248,9 @@ export function registrarGanhos(app: Express, { db, rota, autenticar, exigir, au
     if (!UUID.test(req.params.id)) throw new ErroHttp(404, 'Cupom não encontrado.');
     const c = await db.selectFrom('cupom').selectAll().where('id', '=', req.params.id).executeTakeFirst();
     if (!c) throw new ErroHttp(404, 'Cupom não encontrado.');
-    const dados = dadosCupom.omit({ codigo: true }).partial().parse(req.body);
+    const dados = dadosCupom.partial().parse(req.body);
+    if (dados.codigo && dados.codigo !== c.codigo
+      && await db.selectFrom('cupom').select('id').where('codigo', '=', dados.codigo).executeTakeFirst()) throw new ErroHttp(409, 'Já existe um cupom com este código.');
     const mudancas: Record<string, unknown> = {};
     const linhas: LinhaAuditoria[] = [];
     for (const [campo, novo] of Object.entries(dados)) {
@@ -320,7 +323,7 @@ export function registrarGanhos(app: Express, { db, rota, autenticar, exigir, au
       db.selectFrom('cupom').select(['codigo', 'descontoPct', 'validade', 'ativo']).where('influenciadorId', '=', i.id).orderBy('codigo').execute(),
       db.selectFrom('vendaDireta as v').innerJoin('cupom as c', 'c.id', 'v.cupomId')
         .select(['c.codigo', 'v.valor', 'v.decididaEm'])
-        .where('c.influenciadorId', '=', i.id).where('v.situacao', '=', 'CONFIRMADA')
+        .where('c.influenciadorId', '=', i.id).where('v.situacao', '=', 'CONFIRMADA').where('v.devolvidaEm', 'is', null)
         .where('v.decididaEm', '>=', inicio).where('v.decididaEm', '<', fim).execute(),
       db.selectFrom('ganho').select(['valor', 'valorSemTeto', 'situacao', 'competencia', 'criadoEm'])
         .where('influenciadorId', '=', i.id).where('tipo', '=', 'COMISSAO_INFLUENCIADOR').where('situacao', '!=', 'CANCELADA').execute(),
@@ -444,7 +447,9 @@ export function registrarGanhos(app: Express, { db, rota, autenticar, exigir, au
     const esperado = Buffer.from(rotinaSegredo ?? '');
     if (!rotinaSegredo || enviado.length !== esperado.length || !timingSafeEqual(enviado, esperado)) throw new ErroHttp(401, 'Rotina não autorizada.');
     const liberadas = await liberarGanhosVencidos(db);
-    await auditar(db, [{ entidade: 'rotina', entidadeId: 'dia', acao: 'executar', para: { comissoesLiberadas: liberadas }, autorId: null }]);
-    res.json({ comissoesLiberadas: liberadas });
+    const sequencias = await gerarSequencias(db);
+    const feito = { comissoesLiberadas: liberadas, tarefasDeRecompra: sequencias.recompra, tarefasDeEmRisco: sequencias.emRisco };
+    await auditar(db, [{ entidade: 'rotina', entidadeId: 'dia', acao: 'executar', para: feito, autorId: null }]);
+    res.json(feito);
   }));
 }

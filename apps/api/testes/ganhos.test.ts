@@ -173,11 +173,11 @@ describe('liberação depois do prazo de troca e pagamento', () => {
   });
   test('antes do prazo a rotina não libera; depois do prazo, libera', async () => {
     const antes = await request(app).post('/rotinas/dia').set('x-rotina-segredo', SEGREDO);
-    expect(antes.body).toEqual({ comissoesLiberadas: 0 });
+    expect(antes.body).toMatchObject({ comissoesLiberadas: 0 });
     expect((await api.post('socio', `/ganhos/${comissao}/pagar`)).status).toBe(409); // ainda aguardando
     await db.updateTable('ganho').set({ liberarEm: new Date(Date.now() - 1000) }).where('id', 'in', [comissao, proLabore]).execute();
     const depois = await request(app).post('/rotinas/dia').set('x-rotina-segredo', SEGREDO);
-    expect(depois.body).toEqual({ comissoesLiberadas: 2 });
+    expect(depois.body).toMatchObject({ comissoesLiberadas: 2 });
     const linha = await db.selectFrom('ganho').selectAll().where('id', '=', comissao).executeTakeFirstOrThrow();
     expect(linha.situacao).toBe('LIBERADA');
   });
@@ -254,6 +254,25 @@ describe('quem vê o quê', () => {
     expect(doSocio.retorno).toBeCloseTo(doSocio.valorVendas - doSocio.comissao - 60, 2);
     expect((await api.get('ana', '/influenciadores')).status).toBe(403);
     expect((await api.get('influ1', '/influenciadores')).status).toBe(403);
+  });
+  test('o Sócio edita o cupom: código, desconto, comissão e validade; código repetido é recusado', async () => {
+    const criado = await api.post('socio', `/influenciadores/${id.influenciador}/cupons`, { codigo: 'EDITA5', descontoPct: 5 });
+    expect(criado.status).toBe(201);
+    expect((await api.patch('gerente', `/cupons/${criado.body.id}`, { descontoPct: 8 })).status).toBe(403);
+    expect((await api.patch('socio', `/cupons/${criado.body.id}`, { codigo: 'um10' })).status).toBe(409);
+    expect((await api.patch('socio', `/cupons/${criado.body.id}`, { codigo: 'editado8', descontoPct: 8, comissaoPct: 12, validade: '2099-12-31' })).status).toBe(200);
+    const c = await db.selectFrom('cupom').selectAll().where('id', '=', criado.body.id).executeTakeFirstOrThrow();
+    expect(c).toMatchObject({ codigo: 'EDITADO8', validade: '2099-12-31' });
+    expect(Number(c.descontoPct)).toBe(8);
+    expect(Number(c.comissaoPct)).toBe(12);
+    expect((await api.get('ana', '/cupons/validar?codigo=EDITADO8')).body.valido).toBe(true);
+    // Vencido deixa de valer; tirar a validade faz valer de novo.
+    expect((await api.patch('socio', `/cupons/${criado.body.id}`, { validade: '2020-01-01' })).status).toBe(200);
+    expect((await api.get('ana', '/cupons/validar?codigo=EDITADO8')).body.valido).toBe(false);
+    expect((await api.patch('socio', `/cupons/${criado.body.id}`, { validade: null })).status).toBe(200);
+    expect((await api.get('ana', '/cupons/validar?codigo=EDITADO8')).body.valido).toBe(true);
+    const alteracoes = await db.selectFrom('auditoria').select('campo').where('entidadeId', '=', criado.body.id).where('acao', '=', 'alterar').execute();
+    expect(alteracoes.map((a) => a.campo)).toEqual(expect.arrayContaining(['codigo', 'descontoPct', 'comissaoPct', 'validade']));
   });
   test('cliente novo é de quem trouxe a primeira compra; quem compra de novo conta como "voltou"', async () => {
     const antes = (await api.get('socio', '/influenciadores')).body.find((i: { id: string }) => i.id === id.influenciador);

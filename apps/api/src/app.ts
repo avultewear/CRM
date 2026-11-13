@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type RequestHandler, type Res
 import jwt from 'jsonwebtoken';
 import { z, ZodError } from 'zod';
 import { registrarAtendimento } from './atendimento.js';
+import { registrarClientes } from './clientes.js';
 import { registrarGanhos } from './ganhos.js';
 import { comoJson, type Banco } from './banco.js';
 import { ErroHttp, type LinhaAuditoria, type Pedido, type Usuario } from './http.js';
@@ -278,6 +279,7 @@ export function criarApp({ db, jwtSegredo, origemWeb, rotinaSegredo }: { db: Ban
 
   registrarAtendimento(app, { db, rota, autenticar, exigir, auditar });
   registrarGanhos(app, { db, rota, autenticar, exigir, auditar }, rotinaSegredo);
+  registrarClientes(app, { db, rota, autenticar, exigir, auditar });
 
   app.use((_req, _res, next) => next(new ErroHttp(404, 'Rota não encontrada.')));
 

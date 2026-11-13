@@ -72,6 +72,39 @@ export interface TabelaCliente {
   aceiteEm: Date | null;
   aceiteCanal: string | null;
   vendedorId: string | null;
+  etiquetas: Generated<string[]>;
+  codigoIndicacao: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaTroca {
+  id: Generated<string>;
+  vendaDiretaId: string;
+  clienteId: string;
+  item: string;
+  quantidade: Generated<number>;
+  motivo: 'TAMANHO' | 'DEFEITO' | 'NAO_GOSTOU' | 'ARREPENDIMENTO';
+  situacao: Generated<'SOLICITADA' | 'PECA_RECEBIDA' | 'RESOLVIDA'>;
+  estadoDaPeca: 'BOM' | 'DEFEITO' | null;
+  resolucao: 'NOVA_PECA' | 'VALOR_DEVOLVIDO' | null;
+  observacao: string | null;
+  abertaPor: string;
+  recebidaEm: Date | null;
+  resolvidaPor: string | null;
+  resolvidaEm: Date | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaBrinde {
+  id: Generated<string>;
+  clienteId: string;
+  descricao: string;
+  motivo: string;
+  custo: string | number | null;
+  entregueEm: string;
+  criadoPor: string;
   criadoEm: Generated<Date>;
   atualizadoEm: Generated<Date>;
 }
@@ -120,9 +153,12 @@ export interface TabelaHistoricoEtapa {
 
 export interface TabelaAtividade {
   id: Generated<string>;
-  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO';
+  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO' | 'SEQUENCIA';
   origem: Generated<string>;
   oportunidadeId: string | null;
+  clienteId: string | null;
+  sequencia: 'POS_COMPRA' | 'RECOMPRA' | 'EM_RISCO' | null;
+  referencia: string | null;
   responsavelId: string;
   titulo: string;
   mensagem: string | null;
@@ -158,6 +194,8 @@ export interface TabelaVendaDireta {
   decididaEm: Date | null;
   motivoRecusa: string | null;
   cupomId: string | null;
+  indicadoPorId: string | null;
+  devolvidaEm: Date | null;
   criadoEm: Generated<Date>;
   atualizadoEm: Generated<Date>;
 }
@@ -244,6 +282,8 @@ export interface Tabelas {
   ganho: TabelaGanho;
   pecaEnviada: TabelaPecaEnviada;
   combinadoPosts: TabelaCombinadoPosts;
+  troca: TabelaTroca;
+  brinde: TabelaBrinde;
 }
 
 export type Banco = Kysely<Tabelas>;

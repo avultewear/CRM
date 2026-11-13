@@ -29,7 +29,7 @@ export interface Influenciador {
 
 type Aberto =
   | { tipo: 'influenciador'; alvo: Influenciador | null }
-  | { tipo: 'cupom' | 'peca' | 'posts'; alvo: Influenciador };
+  | { tipo: 'cupom' | 'peca' | 'posts'; alvo: Influenciador; cupom?: Influenciador['cupons'][number] };
 
 const emDia = (iso: string) => iso.split('-').reverse().join('/');
 const pct = (n: number) => `${n.toLocaleString('pt-BR')}%`;
@@ -81,10 +81,13 @@ export function InfluenciadoresCliente({ inicial, acessos, verCifras, children }
     evento.preventDefault();
     if (aberto?.tipo !== 'cupom') return;
     const f = new FormData(evento.currentTarget);
-    executar(() => chamar('POST', `/influenciadores/${aberto.alvo.id}/cupons`, {
+    const corpo = {
       codigo: String(f.get('codigo') ?? ''), descontoPct: lerNumero(f.get('descontoPct')) ?? 0,
       comissaoPct: lerNumero(f.get('comissaoPct')), validade: String(f.get('validade') ?? '') || null,
-    }), 'Cupom criado.');
+    };
+    const cupom = aberto.cupom;
+    executar(() => (cupom ? chamar('PATCH', `/cupons/${cupom.id}`, corpo) : chamar('POST', `/influenciadores/${aberto.alvo.id}/cupons`, corpo)),
+      cupom ? 'Cupom atualizado.' : 'Cupom criado.');
   }
 
   function salvarPeca(evento: React.FormEvent<HTMLFormElement>) {
@@ -165,7 +168,9 @@ export function InfluenciadoresCliente({ inicial, acessos, verCifras, children }
                   <span className="apagado"> · {c.validade ? `vale até ${emDia(c.validade)}` : 'sem validade'}</span>
                 </div>
                 <div className="fila-acoes">
-                  <Estado tipo={c.ativo ? 'bom' : 'neutro'}>{c.ativo ? 'Ativo' : 'Desativado'}</Estado>
+                  {!c.ativo ? <Estado tipo="neutro">Desativado</Estado>
+                    : c.validade && c.validade < hoje() ? <Estado tipo="atencao">Vencido</Estado> : <Estado tipo="bom">Ativo</Estado>}
+                  {verCifras && <button className="botao pequeno" onClick={() => abrir({ tipo: 'cupom', alvo: i, cupom: c })} data-teste="editar-cupom">Editar</button>}
                   {verCifras && <button className="botao pequeno fantasma" onClick={() => alternarCupom(c.id, !c.ativo)}>{c.ativo ? 'Desativar' : 'Reativar'}</button>}
                 </div>
               </div>
@@ -235,21 +240,22 @@ export function InfluenciadoresCliente({ inicial, acessos, verCifras, children }
       )}
 
       {aberto?.tipo === 'cupom' && (
-        <Modal titulo={`Novo cupom de ${aberto.alvo.nome}`} fechar={() => setAberto(null)}>
+        <Modal titulo={aberto.cupom ? `Editar o cupom ${aberto.cupom.codigo}` : `Novo cupom de ${aberto.alvo.nome}`} fechar={() => setAberto(null)}>
           <form onSubmit={salvarCupom} style={{ display: 'grid', gap: 14 }}>
             <div className="linha-campos">
-              <label className="campo"><span>Código (sem espaço)</span><input name="codigo" required maxLength={20} style={{ textTransform: 'uppercase' }} /></label>
-              <label className="campo"><span>Desconto para o cliente (%)</span><input name="descontoPct" inputMode="decimal" required /></label>
+              <label className="campo"><span>Código (sem espaço)</span><input name="codigo" required maxLength={20} style={{ textTransform: 'uppercase' }} defaultValue={aberto.cupom?.codigo} /></label>
+              <label className="campo"><span>Desconto para o cliente (%)</span><input name="descontoPct" inputMode="decimal" required defaultValue={aberto.cupom ? String(aberto.cupom.descontoPct).replace('.', ',') : ''} /></label>
             </div>
             <div className="linha-campos">
-              <label className="campo"><span>Comissão (%). Vazio usa o padrão de Metas</span><input name="comissaoPct" inputMode="decimal" /></label>
-              <label className="campo"><span>Vale até (opcional)</span><input name="validade" type="date" /></label>
+              <label className="campo"><span>Comissão (%). Vazio usa o padrão de Metas</span><input name="comissaoPct" inputMode="decimal" defaultValue={aberto.cupom?.comissaoPct == null ? '' : String(aberto.cupom.comissaoPct).replace('.', ',')} /></label>
+              <label className="campo"><span>Válido até</span><input name="validade" type="date" defaultValue={aberto.cupom?.validade ?? ''} data-teste="validade-cupom" />
+                <small className="apagado">Vale até o fim desse dia. Vazio: sem data para acabar.</small></label>
             </div>
             <p className="apagado">Quando a loja estiver ligada (etapa 2), o cupom passa a valer também no checkout do site.</p>
             {erro && <p className="erro" role="alert" data-teste="erro-formulario">{erro}</p>}
             <div className="acoes">
               <button type="button" className="botao fantasma" onClick={() => setAberto(null)}>Cancelar</button>
-              <button type="submit" className="botao principal-acao" data-teste="salvar-cupom">Criar cupom</button>
+              <button type="submit" className="botao principal-acao" data-teste="salvar-cupom">{aberto.cupom ? 'Salvar' : 'Criar cupom'}</button>
             </div>
           </form>
         </Modal>

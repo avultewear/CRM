@@ -45,7 +45,7 @@ export interface Detalhe extends Oportunidade {
 
 export interface Tarefa {
   id: string;
-  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO';
+  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO' | 'SEQUENCIA';
   titulo: string;
   mensagem: string | null;
   prazo: string;
