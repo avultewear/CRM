@@ -17,9 +17,9 @@ describe('papéis: cada um vê só o que deve', () => {
       expect(pode('GERENTE', p), p).toBe(false);
     }
   });
-  test('Vendedor vê atendimento, pedidos, clientes e estoque, e nada de gestão', () => {
+  test('Vendedor vê atendimento, pedidos, clientes, estoque e a própria comissão, e nada de gestão', () => {
     expect(permissoesDe('VENDEDOR').sort()).toEqual(
-      ['atendimento.ver', 'clientes.ver', 'estoque.ver', 'metricas.ver', 'pedidos.ver'].sort(),
+      ['atendimento.ver', 'clientes.ver', 'estoque.ver', 'ganhos.meus', 'metricas.ver', 'pedidos.ver'].sort(),
     );
   });
   test('Gestor de tráfego vê só a aba Tráfego', () => {

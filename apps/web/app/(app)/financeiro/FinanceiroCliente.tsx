@@ -15,6 +15,7 @@ export interface VendaAguardando {
   clienteNome: string;
   vendedorNome: string | null;
   lancadaPorNome: string;
+  cupom: string | null;
 }
 
 /** Regra 11: a venda direta só vira venda com a confirmação de um Sócio. */
@@ -29,7 +30,8 @@ export function FinanceiroCliente({ vendas }: { vendas: VendaAguardando[] }) {
     try {
       await chamar('POST', `/vendas-diretas/${v.id}/confirmar`, {});
       setLista((atual) => atual.filter((x) => x.id !== v.id));
-      setAviso(`Venda de ${v.clienteNome} confirmada: o card foi para Venda.`);
+      setAviso(`Venda de ${v.clienteNome} confirmada: o card foi para Venda e o pró-labore e as comissões foram gerados.`);
+      window.dispatchEvent(new Event('avulte:venda-decidida'));
     } catch (e) {
       setAviso((e as Error).message);
     }
@@ -66,6 +68,7 @@ export function FinanceiroCliente({ vendas }: { vendas: VendaAguardando[] }) {
                   <p className="apagado">
                     Lançada por {v.lancadaPorNome} em {emData(v.criadoEm)}
                     {v.vendedorNome ? ` · vendedor: ${v.vendedorNome}` : ''}
+                    {v.cupom ? ` · cupom ${v.cupom}` : ''}
                     {desconto > 0.05 ? ` · desconto de ${desconto.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% sobre a tabela` : ''}
                   </p>
                 </div>

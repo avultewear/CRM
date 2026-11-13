@@ -305,6 +305,8 @@ export function PainelLead({ id, versao, config, gestao, vendedores, fechar, aca
             };
             const cpf = String(f.get('cpf') ?? '').trim();
             if (cpf) corpo.cpf = cpf;
+            const cupom = String(f.get('cupom') ?? '').trim();
+            if (cupom) corpo.cupom = cupom;
             enviar(() => chamar('POST', `/oportunidades/${d.id}/venda-direta`, corpo), 'Venda lançada. Ela vira venda quando um Sócio confirmar.');
           }}>
             <p className="secundario">Exceção para quem paga fora do site. A venda só é confirmada por um Sócio.</p>
@@ -326,11 +328,16 @@ export function PainelLead({ id, versao, config, gestao, vendedores, fechar, aca
                 <span>Forma de pagamento</span>
                 <select name="formaPagamento" defaultValue="PIX"><option value="PIX">Pix</option><option value="DINHEIRO">Dinheiro</option></select>
               </label>
+              <label className="campo">
+                <span>Cupom (opcional)</span>
+                <input name="cupom" maxLength={20} autoComplete="off" style={{ textTransform: 'uppercase' }} data-teste="cupom-venda" />
+              </label>
               {!d.cliente.temCpf && (
                 <label className="campo"><span>CPF do cliente (obrigatório na venda)</span><input name="cpf" inputMode="numeric" required placeholder="000.000.000-00" autoComplete="off" /></label>
               )}
             </div>
             {erro && <p className="erro" role="alert" data-teste="erro-formulario">{erro}</p>}
+            <p className="apagado">Com cupom, o desconto do cupom vale mesmo acima do seu limite, e o influenciador dono dele recebe a comissão.</p>
             <div className="acoes">
               <button type="button" className="botao fantasma" onClick={() => setModal(null)}>Cancelar</button>
               <button type="submit" className="botao principal-acao" data-teste="salvar-venda">Lançar venda</button>

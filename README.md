@@ -7,6 +7,10 @@ Entregue até aqui:
 - **Etapa 3 (Atendimento):** quadro com as 6 etapas, painel do lead, perdas com destino, rodízio,
   follow como tarefa e venda direta confirmada pelos Sócios. Relatório em `RELATORIO-ETAPA-3.md`.
 
+- **Etapa 5 (Cupons, comissões e influenciadores):** gestão de influenciadores, cupom na venda
+  direta, pró-labore e comissões com teto e liberação, Financeiro dos Sócios e o espaço do
+  influenciador. Por enquanto a fonte das vendas é a venda direta. Relatório em `RELATORIO-ETAPA-5.md`.
+
 A etapa 2 (loja ligada, Pedidos e Estoque) espera o plano da Hostinger e o código do site. As
 demais abas já existem com cabeçalho, permissão e a tela vazia que ensina o primeiro passo.
 
@@ -51,12 +55,19 @@ em Equipe e desative as pessoas de teste.
 npm test          # API: usa um banco de TESTE (o nome precisa conter "teste") e o zera a cada execução
 npm run aceite    # navegador, etapa 1: precisa da API e das telas rodando e das pessoas do semear
 npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem leads
+npm run aceite:5  # navegador, etapa 5: banco recém-semeado; pode rodar logo depois dos outros dois
 ```
+
+## Rotina do dia
+
+`POST /rotinas/dia`, com o cabeçalho `x-rotina-segredo` igual a `ROTINA_SEGREDO`, libera as
+comissões cujo prazo de troca venceu. Quando o sistema for publicado, um agendador chama essa rota
+uma vez por dia. Sem `ROTINA_SEGREDO` definido, a rota recusa todas as chamadas.
 
 ## Demonstração clicável
 
 `npm run demo` entra no sistema rodando, preenche o banco de desenvolvimento com dados fictícios,
-retrata cada tela com três papéis (Sócio, Gerente e Vendedor) e monta uma página só, navegável, em
+retrata cada tela com quatro papéis (Sócio, Gerente, Vendedor e Influenciador) e monta uma página só, navegável, em
 `demo/saida/index.html`. Ela serve para acompanhar o visual; nada é gravado nela.
 
 ## Decisões desta etapa
@@ -78,6 +89,7 @@ retrata cada tela com três papéis (Sócio, Gerente e Vendedor) e monta uma pá
 | API | `ORIGEM_WEB` | endereço das telas |
 | API | `PORTA` | porta da API (padrão 4000) |
 | API | `SEMENTE_SENHA` | senha das pessoas fictícias do `semear` |
+| API | `ROTINA_SEGREDO` | segredo da rotina do dia (16 caracteres ou mais, aleatório) |
 | Telas | `API_URL` | endereço da API |
 
 Chaves e senhas ficam só nas variáveis de ambiente, nunca no código.

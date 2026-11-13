@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type RequestHandler, type Res
 import jwt from 'jsonwebtoken';
 import { z, ZodError } from 'zod';
 import { registrarAtendimento } from './atendimento.js';
+import { registrarGanhos } from './ganhos.js';
 import { comoJson, type Banco } from './banco.js';
 import { ErroHttp, type LinhaAuditoria, type Pedido, type Usuario } from './http.js';
 import { metricasPara } from './metricas.js';
@@ -52,7 +53,7 @@ const dadosPessoa = z.object({
 const novaPessoa = dadosPessoa.partial().required({ nome: true, email: true, senha: true, papel: true }).omit({ ativo: true });
 const alteracaoPessoa = dadosPessoa.partial();
 
-export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo: string; origemWeb: string }) {
+export function criarApp({ db, jwtSegredo, origemWeb, rotinaSegredo }: { db: Banco; jwtSegredo: string; origemWeb: string; rotinaSegredo?: string }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(cors({ origin: origemWeb }));
@@ -276,6 +277,7 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
   }));
 
   registrarAtendimento(app, { db, rota, autenticar, exigir, auditar });
+  registrarGanhos(app, { db, rota, autenticar, exigir, auditar }, rotinaSegredo);
 
   app.use((_req, _res, next) => next(new ErroHttp(404, 'Rota não encontrada.')));
 

@@ -25,6 +25,8 @@ const MATRIZ: Record<string, Papel[]> = {
   'vendas.confirmar': ['SOCIO'],
   // Ver o CPF completo de um cliente (cada acesso fica na auditoria).
   'cpf.ver': ['SOCIO'],
+  // Ver a própria comissão (cada pessoa só vê a sua).
+  'ganhos.meus': ['GERENTE', 'VENDEDOR'],
   'pedidos.ver': COMERCIAL,
   'clientes.ver': COMERCIAL,
   'estoque.ver': ['SOCIO', 'GERENTE', 'VENDEDOR', 'SOCIAL_MEDIA'],

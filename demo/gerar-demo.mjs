@@ -22,6 +22,7 @@ const PAPEIS = [
   { id: 'socio', nome: 'Sócio', inicio: '/atendimento' },
   { id: 'gerente', nome: 'Gerente', inicio: '/atendimento' },
   { id: 'vendedor', nome: 'Vendedor', inicio: '/atendimento' },
+  { id: 'influenciador', nome: 'Influenciador', inicio: '/meu-espaco' },
 ];
 
 // ------------------------------------------------------------------ 1. Dados fictícios
@@ -37,6 +38,8 @@ function cliente(token) {
     return dados;
   };
 }
+/** Dia no horário de Brasília (AAAA-MM-DD), com deslocamento em dias. */
+const hoje = (dias = 0) => new Date(Date.now() - 3 * 3_600_000 + dias * 86_400_000).toISOString().slice(0, 10);
 /** CPF fictício com dígitos verificadores válidos. */
 function cpfFicticio(n) {
   const base = String(100000000 + n * 7919).slice(0, 9).split('').map(Number);
@@ -55,7 +58,8 @@ async function semearDemo() {
 
   // Parâmetros de exemplo (os Sócios definem os reais em Metas).
   const exemplo = 'Valor de exemplo para a demonstração';
-  for (const [chave, valor] of [['meta_faturamento_mensal', 20000], ['tempo_maximo_etapa_horas', 48], ['recuperacao_tentativas', 3], ['limite_desconto_pct', 10]]) {
+  for (const [chave, valor] of [['meta_faturamento_mensal', 20000], ['tempo_maximo_etapa_horas', 48], ['recuperacao_tentativas', 3], ['limite_desconto_pct', 10],
+    ['prolabore_pct', 10], ['comissao_vendedor_pct', 5], ['comissao_vendedor_teto', 800], ['comissao_influenciador_pct', 10], ['comissao_influenciador_teto', 500], ['prazo_troca_dias', 7]]) {
     await socio('PUT', `/parametros/${chave}`, { valor, justificativa: exemplo });
   }
   // Segundo vendedor, para o rodízio e o filtro por vendedor.
@@ -100,6 +104,39 @@ async function semearDemo() {
     itens: [{ descricao: 'Camiseta Oversized Gym G', quantidade: 1, precoTabela: 119.9, preco: 119.9 }], formaPagamento: 'DINHEIRO', cpf: cpfFicticio(2),
   });
   await socio('POST', `/vendas-diretas/${venda.id}/confirmar`, {});
+  // Influenciadores, cupons e vendas com cupom (etapa 5)
+  const acessoBia = equipe.find((p) => p.email === 'influenciador@avulte.teste');
+  const bia = await socio('POST', '/influenciadores', { nome: 'Bia Corre', arroba: '@biacorre.teste', usuarioId: acessoBia.id });
+  await socio('POST', `/influenciadores/${bia.id}/cupons`, { codigo: 'BIA10', descontoPct: 10 });
+  await socio('POST', `/influenciadores/${bia.id}/pecas`, { descricao: 'Camiseta Técnica Running P', quantidade: 1, enviadaEm: hoje(-9), custo: 42 });
+  await socio('POST', `/influenciadores/${bia.id}/pecas`, { descricao: 'Short Dupla Camada Running P', quantidade: 1, enviadaEm: hoje(-9), custo: 38 });
+  await gerente('PUT', `/influenciadores/${bia.id}/posts`, { mes: hoje().slice(0, 7), combinados: 4, feitos: 3 });
+  const leo = await socio('POST', '/influenciadores', { nome: 'Léo Treina', arroba: '@leotreina.teste' });
+  await socio('POST', `/influenciadores/${leo.id}/cupons`, { codigo: 'LEO10', descontoPct: 10, comissaoPct: 8 });
+  await gerente('PUT', `/influenciadores/${leo.id}/posts`, { mes: hoje().slice(0, 7), combinados: 2, feitos: 0 });
+
+  const comCupom = [];
+  for (const [n, nome, dono, peca, tabela, diasAtras] of [
+    [3, 'Larissa Pinto', ana.id, 'Camiseta Técnica Running M', 119.9, 2],
+    [4, 'Marcos Vieira', lucas.id, 'Short Dupla Camada Running G', 129.9, 5],
+    [5, 'Natália Reis', ana.id, 'Regata Running P', 89.9, 0],
+    [6, 'Otávio Lima', lucas.id, 'Camiseta Técnica Running G', 119.9, 5],
+  ]) {
+    const o = await lead(nome, { canal: 'INSTAGRAM', origem: 'INFLUENCIADOR', origemDetalhe: 'Cupom BIA10' }, dono);
+    const v = await gerente('POST', `/oportunidades/${o.id}/venda-direta`, {
+      itens: [{ descricao: peca, quantidade: 1, precoTabela: tabela, preco: Math.round(tabela * 90) / 100 }], formaPagamento: 'PIX', cpf: cpfFicticio(n), cupom: 'BIA10',
+    });
+    await socio('POST', `/vendas-diretas/${v.id}/confirmar`, {});
+    comCupom.push({ venda: v.id, diasAtras });
+  }
+  // Uma comissão já paga e outra liberada, para o Financeiro mostrar os três momentos.
+  const resumo = await socio('GET', '/financeiro/resumo');
+  const daBia = resumo.aguardando.find((g) => g.quem === 'Bia Corre' && g.cliente === 'Marcos Vieira');
+  await socio('POST', `/ganhos/${daBia.id}/liberar`, {});
+  await socio('POST', `/ganhos/${daBia.id}/pagar`, {});
+  const daAna = resumo.aguardando.find((g) => g.tipo === 'COMISSAO_VENDEDOR' && g.cliente === 'Gustavo Almeida');
+  await socio('POST', `/ganhos/${daAna.id}/liberar`, {});
+
   // Recuperação
   const helena = await lead('Helena Duarte', { canal: 'INSTAGRAM', origem: 'INFLUENCIADOR', origemDetalhe: 'Cupom de influenciadora', interesse: 'Jaqueta Training', tamanho: 'P' }, lucas.id);
   await responder(helena); await avancar(helena); await avancar(helena);
@@ -120,6 +157,13 @@ async function semearDemo() {
   await banco.query(`UPDATE historico_etapa SET entrou_em = now() - interval '3 days' WHERE oportunidade_id = $1 AND saiu_em IS NULL`, [bruno.id]);
   await banco.query(`UPDATE atividade SET prazo = now() - interval '5 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [diego.id]);
   await banco.query(`UPDATE atividade SET prazo = now() + interval '2 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [helena.id]);
+  // Vendas com cupom em dias diferentes (sempre dentro do mês em andamento).
+  for (const { venda, diasAtras } of comCupom) {
+    const dias = Math.min(diasAtras, Number(hoje().slice(8)) - 1);
+    if (!dias) continue;
+    await banco.query(`UPDATE venda_direta SET decidida_em = decidida_em - make_interval(days => $2), criado_em = criado_em - make_interval(days => $2) WHERE id = $1`, [venda, dias]);
+    await banco.query(`UPDATE ganho SET criado_em = criado_em - make_interval(days => $2), liberar_em = liberar_em - make_interval(days => $2) WHERE venda_direta_id = $1`, [venda, dias]);
+  }
   await banco.end();
   console.log('Dados fictícios criados.');
 }
@@ -205,6 +249,23 @@ const EXTRAS = {
       await pagina.waitForSelector('[data-teste="salvar-pessoa"]');
       sobre[`modal:pessoa:${email}`] = await retratoDoModal(pagina);
       await fecharTudo(pagina);
+    }
+  },
+  '/influenciadores': async (pagina, sobre) => {
+    await pagina.click('[data-teste="novo-influenciador"]');
+    await pagina.waitForSelector('[data-teste="salvar-influenciador"]');
+    sobre['modal:influenciador-novo'] = await retratoDoModal(pagina);
+    await fecharTudo(pagina);
+    const nomes = await pagina.$$eval('[data-teste="influenciador"]', (cs) => cs.map((c) => c.dataset.nome));
+    for (const nome of nomes) {
+      const dentro = `[data-teste="influenciador"][data-nome="${nome}"]`;
+      for (const [botao, chave] of [['alterar-influenciador', 'influenciador'], ['novo-cupom', 'cupom'], ['atualizar-posts', 'posts'], ['registrar-peca', 'peca']]) {
+        if (!(await pagina.$(`${dentro} [data-teste="${botao}"]`))) continue; // o Gerente não cria cupom
+        await pagina.click(`${dentro} [data-teste="${botao}"]`);
+        await pagina.waitForSelector('.modal');
+        sobre[`modal:${chave}:${nome}`] = await retratoDoModal(pagina);
+        await fecharTudo(pagina);
+      }
     }
   },
   '/metricas': async (pagina, sobre) => {

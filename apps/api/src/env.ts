@@ -15,5 +15,7 @@ export const env = z
     JWT_SEGREDO: z.string().min(16, 'JWT_SEGREDO precisa de pelo menos 16 caracteres'),
     PORTA: z.coerce.number().default(4000),
     ORIGEM_WEB: z.string().default('http://localhost:3000'),
+    // Segredo das rotinas automáticas (cron externo). Sem ele, as rotas de rotina ficam desligadas.
+    ROTINA_SEGREDO: z.string().min(16).optional(),
   })
   .parse(process.env);

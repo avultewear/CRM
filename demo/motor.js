@@ -72,6 +72,8 @@
     });
   }
 
+  function donoDoCartao(el) { return el.closest('[data-teste="influenciador"]').getAttribute('data-nome'); }
+
   // De cima para baixo: o primeiro seletor que casar com o clique decide o que abre.
   var GATILHOS = [
     ['[data-teste="card-avancar"]', function () { avisar('Avançar só passa para a etapa seguinte, e só com o critério cumprido. ' + NAO_GRAVA); }],
@@ -89,6 +91,12 @@
         if (de && para) para.value = de.value || (campo === 'quantidade' ? '1' : '');
       });
     }],
+    ['[data-teste="novo-influenciador"]', function () { abrirSobre('modal:influenciador-novo'); }],
+    ['[data-teste="alterar-influenciador"]', function (el) { abrirSobre('modal:influenciador:' + donoDoCartao(el)); }],
+    ['[data-teste="novo-cupom"]', function (el) { abrirSobre('modal:cupom:' + donoDoCartao(el)); }],
+    ['[data-teste="atualizar-posts"]', function (el) { abrirSobre('modal:posts:' + donoDoCartao(el)); }],
+    ['[data-teste="registrar-peca"]', function (el) { abrirSobre('modal:peca:' + donoDoCartao(el)); }],
+    ['[data-teste="copiar-cupom"]', function (el) { el.textContent = 'Copiado'; }],
     ['[data-teste^="editar-pessoa-"]', function (el) { abrirSobre('modal:pessoa:' + el.getAttribute('data-teste').replace('editar-pessoa-', '')); }],
     ['[data-teste="adicionar-pessoa"]', function () { abrirSobre('modal:pessoa-nova'); }],
     ['[data-teste^="editar-"]', function (el) { abrirSobre('modal:meta:' + el.getAttribute('data-teste').replace('editar-', '')); }],

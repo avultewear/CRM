@@ -38,6 +38,30 @@ ok('botão de gravar avisa que é demonstração', !(await p.$eval('#demo-aviso'
 await p.click('a.item-menu[href="/atendimento"]');
 await p.evaluate(() => [...document.querySelectorAll('.filtros .chip')].find(c => c.textContent.trim() === 'Recuperação').click());
 ok('filtro de fase esconde colunas', (await p.$$eval('.coluna-quadro', cs => cs.filter(c => c.style.display !== 'none').length)) === 1);
+// Etapa 5: influenciadores, comissões e o espaço do influenciador
+await p.click('a.item-menu[href="/financeiro"]');
+ok('financeiro mostra pró-labore, comissões a pagar e aguardando',
+  (await p.$$('[data-teste="comissoes-a-pagar"] [data-teste="comissao"]')).length === 1 && (await p.$$('[data-teste="comissoes-aguardando"] [data-teste="comissao"]')).length >= 5
+  && /R\$\s/.test(await p.$eval('[data-teste="resumo-financeiro"]', e => e.textContent)));
+await p.screenshot({ path: '/tmp/demo-5.png', fullPage: true });
+await p.click('a.item-menu[href="/influenciadores"]');
+ok('influenciadores: dois cadastros, com retorno para o sócio', (await p.$$('[data-teste="influenciador"]')).length === 2 && (await p.$eval('#demo-palco', e => e.textContent)).includes('Retorno'));
+await p.click('[data-teste="influenciador"][data-nome="Bia Corre"] [data-teste="novo-cupom"]');
+ok('abre o modal de novo cupom da influenciadora certa', (await p.$eval('.modal', e => e.textContent)).includes('Novo cupom de Bia Corre'));
+await p.keyboard.press('Escape');
+await p.screenshot({ path: '/tmp/demo-6.png', fullPage: true });
+await p.select('#demo-papel', 'gerente'); await p.click('a.item-menu[href="/influenciadores"]');
+const comoGerente = await p.$eval('#demo-palco', e => e.textContent);
+ok('gerente vê os influenciadores sem comissão, custo nem retorno', comoGerente.includes('Bia Corre') && !comoGerente.includes('Retorno') && !comoGerente.includes('Comissão gerada'));
+await p.select('#demo-papel', 'influenciador');
+const menuInflu = await p.$$eval('[data-teste="menu-item"]', is => is.map(i => i.textContent.trim()));
+const espaco = await p.$eval('#demo-palco', e => e.textContent);
+ok('ver como influenciador: só o espaço dele, com vendas e sem nome de cliente', menuInflu.join() === 'Meu espaço' && (await p.$eval('[data-teste="espaco-vendas"]', e => e.textContent)) === '4'
+  && espaco.includes('BIA10') && !espaco.includes('Larissa') && !espaco.includes('Marcos'));
+await p.screenshot({ path: '/tmp/demo-7.png', fullPage: true });
+await p.select('#demo-papel', 'vendedor');
+ok('vendedor vê a própria comissão no Atendimento', (await p.$eval('#demo-palco', e => e.textContent)).includes('Minha comissão no mês'));
+await p.select('#demo-papel', 'socio');
 await p.setViewport({ width: 390, height: 844 }); await p.reload({ waitUntil: 'load' });
 ok('390 px sem rolagem lateral', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
 await p.click('[data-teste="abrir-menu"]'); await new Promise(r => setTimeout(r, 400));

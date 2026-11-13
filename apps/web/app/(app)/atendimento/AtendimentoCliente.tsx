@@ -11,7 +11,9 @@ interface Dados { oportunidades: Oportunidade[]; tarefas: Tarefa[]; agora: Agora
 
 const NOME_TEMPERATURA: Record<string, string> = { FRIA: 'Fria', MORNA: 'Morna', QUENTE: 'Quente' };
 
-export function AtendimentoCliente({ config, inicial, vendedores, gestao, periodoFunil, etapaInicial, children }: {
+export interface MinhaComissao { comissaoDoMes: number; teto: number | null; faltaParaOTeto: number | null }
+
+export function AtendimentoCliente({ config, inicial, vendedores, gestao, periodoFunil, etapaInicial, comissao, children }: {
   config: Config;
   inicial: Dados;
   vendedores: Array<{ id: string; nome: string }>;
@@ -19,6 +21,8 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
   gestao: boolean;
   periodoFunil: string;
   etapaInicial?: string;
+  /** Só para quem recebe comissão (vendedores e Gerente). Cada um vê a própria. */
+  comissao: MinhaComissao | null;
   children: React.ReactNode;
 }) {
   const [dados, setDados] = useState(inicial);
@@ -139,6 +143,10 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
           valor={dados.agora.leads_parados === null ? '—' : String(dados.agora.leads_parados)} variacao=""
           comparado={dados.agora.leads_parados === null ? 'defina o tempo máximo em Metas' : 'acima do tempo máximo'}
           faixa={dados.agora.leads_parados ? { tipo: 'critico', rotulo: 'Destravar' } : undefined} />
+        {comissao && (
+          <CartaoIndicador metrica="minha_comissao" rotulo="Minha comissão no mês" valor={emReais(comissao.comissaoDoMes)} variacao="" cor="var(--prolabore)"
+            comparado={comissao.teto === null ? 'sem teto definido' : comissao.faltaParaOTeto === 0 ? 'teto do mês atingido' : `faltam ${emReais(comissao.faltaParaOTeto ?? 0)} para o teto`} />
+        )}
       </div>
 
       <section className="cartao" data-teste="tarefas">

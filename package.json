@@ -11,6 +11,7 @@
     "dev:web": "npm run dev -w apps/web",
     "aceite": "node testes-aceite/aceite.mjs",
     "aceite:3": "node testes-aceite/aceite-etapa3.mjs",
+    "aceite:5": "node testes-aceite/aceite-etapa5.mjs",
     "demo": "node demo/gerar-demo.mjs"
   }
 }

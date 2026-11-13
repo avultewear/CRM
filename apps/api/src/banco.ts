@@ -2,6 +2,9 @@ import { CamelCasePlugin, Kysely, PostgresDialect, type Generated } from 'kysely
 import pg from 'pg';
 import type { Papel } from './papeis.js';
 
+// Datas sem hora (validade do cupom, envio de peça) ficam como texto AAAA-MM-DD, sem fuso.
+pg.types.setTypeParser(1082, (valor) => valor);
+
 // numeric volta do Postgres como texto; a API converte para número na saída.
 type Numerico = string | number | null;
 
@@ -154,6 +157,73 @@ export interface TabelaVendaDireta {
   decididaPor: string | null;
   decididaEm: Date | null;
   motivoRecusa: string | null;
+  cupomId: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaInfluenciador {
+  id: Generated<string>;
+  usuarioId: string | null;
+  nome: string;
+  arroba: string | null;
+  comissaoTeto: Numerico;
+  ativo: Generated<boolean>;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaCupom {
+  id: Generated<string>;
+  codigo: string;
+  influenciadorId: string;
+  descontoPct: string | number;
+  comissaoPct: Numerico;
+  validade: string | null;
+  ativo: Generated<boolean>;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export type TipoGanho = 'PRO_LABORE' | 'COMISSAO_VENDEDOR' | 'COMISSAO_INFLUENCIADOR';
+export interface TabelaGanho {
+  id: Generated<string>;
+  tipo: TipoGanho;
+  vendaDiretaId: string | null;
+  usuarioId: string | null;
+  influenciadorId: string | null;
+  base: string | number;
+  pct: string | number;
+  valorSemTeto: string | number;
+  valor: string | number;
+  situacao: Generated<'AGUARDANDO' | 'LIBERADA' | 'PAGA' | 'CANCELADA'>;
+  competencia: string;
+  liberarEm: Date | null;
+  liberadaEm: Date | null;
+  pagaEm: Date | null;
+  pagaPor: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaPecaEnviada {
+  id: Generated<string>;
+  influenciadorId: string;
+  descricao: string;
+  quantidade: number;
+  custo: Numerico;
+  enviadaEm: string;
+  registradaPor: string;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaCombinadoPosts {
+  id: Generated<string>;
+  influenciadorId: string;
+  mes: string;
+  combinados: number;
+  feitos: number;
   criadoEm: Generated<Date>;
   atualizadoEm: Generated<Date>;
 }
@@ -169,6 +239,11 @@ export interface Tabelas {
   atividade: TabelaAtividade;
   nota: TabelaNota;
   vendaDireta: TabelaVendaDireta;
+  influenciador: TabelaInfluenciador;
+  cupom: TabelaCupom;
+  ganho: TabelaGanho;
+  pecaEnviada: TabelaPecaEnviada;
+  combinadoPosts: TabelaCombinadoPosts;
 }
 
 export type Banco = Kysely<Tabelas>;

@@ -3,6 +3,7 @@ import type { Selectable } from 'kysely';
 import { z } from 'zod';
 import { comoJson, type Banco, type Etapa, type TabelaCliente, type TabelaOportunidade } from './banco.js';
 import { mediana } from './calculo.js';
+import { cupomValido, gerarGanhos } from './ganhos.js';
 import { ErroHttp, type Ferramentas, type LinhaAuditoria, type Usuario } from './http.js';
 import { pode } from './papeis.js';
 
@@ -645,6 +646,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     }).strict()).min(1, 'Informe pelo menos uma peça.').max(30),
     formaPagamento: z.enum(['PIX', 'DINHEIRO']),
     cpf: z.string().trim().optional(),
+    cupom: z.string().trim().max(20).nullable().optional(),
   }).strict();
 
   app.post('/oportunidades/:id/venda-direta', ...ver, rota(async (req, res) => {
@@ -656,11 +658,16 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     const valor = dados.itens.reduce((s, i) => s + centavos(i.preco) * i.quantidade, 0) / 100;
     const descontoPct = valorTabela > 0 ? (1 - valor / valorTabela) * 100 : 0;
 
+    // Cupom de influenciador: liga a venda a ele e autoriza o desconto do próprio cupom.
+    const cupom = dados.cupom ? await cupomValido(db, dados.cupom) : null;
+    if (dados.cupom && !cupom) throw new ErroHttp(400, 'Cupom inválido, inativo ou vencido.');
+
     // Limite de desconto: o do vendedor ou, na falta, o padrão de Metas. Um Sócio pode lançar acima do limite.
     if (!pode(req.usuario.papel, 'cifras.ver')) {
       const vendedor = o.vendedorId ? await db.selectFrom('usuario').select('limiteDescontoPct').where('id', '=', o.vendedorId).executeTakeFirst() : undefined;
       const limite = numero(vendedor?.limiteDescontoPct ?? null) ?? await parametroNumero('limite_desconto_pct');
-      if (limite !== null && descontoPct > limite + 1e-9) throw new ErroHttp(422, 'Desconto acima do limite. Um Sócio pode liberar.');
+      const permitido = limite === null ? null : Math.max(limite, cupom?.descontoPct ?? 0);
+      if (permitido !== null && descontoPct > permitido + 1e-9) throw new ErroHttp(422, 'Desconto acima do limite. Um Sócio pode liberar.');
     }
     if (!dados.cpf && !c.cpf) throw new ErroHttp(422, 'Informe o CPF do cliente: ele é obrigatório na venda.');
     const quando = new Date();
@@ -670,7 +677,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
       if (aguardando) throw new ErroHttp(409, 'Já existe uma venda direta desta oportunidade aguardando confirmação.');
       const v = await trx.insertInto('vendaDireta').values({
         oportunidadeId: o.id, clienteId: c.id, vendedorId: o.vendedorId, itens: comoJson(dados.itens), valorTabela, valor,
-        formaPagamento: dados.formaPagamento, lancadaPor: req.usuario.id,
+        formaPagamento: dados.formaPagamento, lancadaPor: req.usuario.id, cupomId: cupom?.id ?? null,
       }).returning('id').executeTakeFirstOrThrow();
       const de = o.etapa;
       const campos = {
@@ -695,9 +702,9 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
   app.get('/vendas-diretas', ...ver, rota(async (req, res) => {
     const { situacao } = z.object({ situacao: z.enum(['AGUARDANDO', 'CONFIRMADA', 'CANCELADA']).default('AGUARDANDO') }).parse(req.query);
     let consulta = db.selectFrom('vendaDireta as v').innerJoin('cliente as c', 'c.id', 'v.clienteId')
-      .leftJoin('usuario as u', 'u.id', 'v.vendedorId').innerJoin('usuario as l', 'l.id', 'v.lancadaPor')
+      .leftJoin('usuario as u', 'u.id', 'v.vendedorId').innerJoin('usuario as l', 'l.id', 'v.lancadaPor').leftJoin('cupom as k', 'k.id', 'v.cupomId')
       .select(['v.id', 'v.oportunidadeId', 'v.itens', 'v.valorTabela', 'v.valor', 'v.formaPagamento', 'v.situacao', 'v.criadoEm',
-        'c.nome as clienteNome', 'u.nome as vendedorNome', 'l.nome as lancadaPorNome'])
+        'c.nome as clienteNome', 'u.nome as vendedorNome', 'l.nome as lancadaPorNome', 'k.codigo as cupom'])
       .where('v.situacao', '=', situacao).orderBy('v.criadoEm').limit(200);
     if (!veTodos(req.usuario)) consulta = consulta.where('v.vendedorId', '=', req.usuario.id);
     res.json((await consulta.execute()).map((v) => ({ ...v, valorTabela: Number(v.valorTabela), valor: Number(v.valor) })));
@@ -724,6 +731,8 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
         await trx.updateTable('atividade').set({ status: 'CANCELADA', concluidaEm: quando, atualizadoEm: quando })
           .where('oportunidadeId', '=', o.id).where('tipo', '=', 'FOLLOW').where('status', '=', 'ABERTA').execute();
       }
+      // Venda confirmada gera o pró-labore e as comissões (cada um até o seu teto).
+      await gerarGanhos(trx, v.id, quando);
       await auditar(trx, [
         { entidade: 'vendaDireta', entidadeId: v.id, acao: 'confirmar', campo: 'situacao', de: 'AGUARDANDO', para: 'CONFIRMADA', autorId: req.usuario.id },
         { entidade: 'oportunidade', entidadeId: o.id, acao: 'ganhar', campo: 'etapa', de: 'NEGOCIACAO', para: 'VENDA', autorId: req.usuario.id },
