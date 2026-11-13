@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { criarApp } from '../src/app.js';
 import { abrirBanco, type Banco } from '../src/banco.js';
 import { PAPEIS, type Papel } from '../src/papeis.js';
-import { URL_TESTE } from './preparar-banco.js';
+import prepararBanco, { URL_TESTE } from './preparar-banco.js';
 
 // Dados fictícios: nenhum cliente ou pessoa real.
 const SENHA = 'senha-de-teste-123';
@@ -20,6 +20,7 @@ async function entrar(email: string, senha = SENHA) {
 const como = (papel: Papel) => ({ Authorization: `Bearer ${token[papel]}` });
 
 beforeAll(async () => {
+  await prepararBanco(); // cada arquivo de teste começa com o banco de teste zerado
   db = abrirBanco(URL_TESTE);
   app = criarApp({ db, jwtSegredo: 'segredo-de-teste-com-32-caracteres!!', origemWeb: 'http://localhost:3000' });
   const senhaHash = await bcrypt.hash(SENHA, 4);

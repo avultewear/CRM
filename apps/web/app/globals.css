@@ -201,3 +201,24 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cabecalho-aba { min-width: 0; }
 .cabecalho-aba p, .vazia p, .ficha dd { overflow-wrap: anywhere; }
 button.indicador { font: inherit; color: inherit; }
+
+/* ---------- Atendimento */
+.filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.filtros .campo { min-width: 160px; flex: 0 1 220px; }
+.coluna-quadro { flex-basis: 232px; }
+.coluna-quadro[data-alvo='true'] { border-color: var(--conversao); }
+.coluna-quadro .fase { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tinta-apagada); }
+.coluna-quadro .resumo { font-size: 12px; color: var(--tinta-apagada); display: flex; justify-content: space-between; gap: 6px; }
+.card-quadro { cursor: pointer; text-align: left; min-height: 96px; font: inherit; color: inherit; width: 100%; }
+.card-quadro:hover { border-color: var(--borda-forte); }
+.card-quadro .linha { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; }
+.card-quadro .linha > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etiqueta { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--borda-forte); color: var(--tinta-2); white-space: nowrap; }
+.botao.pequeno { height: 26px; padding: 0 8px; font-size: 12px; }
+.secao { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.secao h3 { font-size: 13px; font-weight: 600; }
+.aviso { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 60; margin: 0 auto; width: fit-content; max-width: min(560px, calc(100vw - 24px)); padding: 10px 14px; border-radius: 10px; background: var(--destaque-fundo); color: var(--destaque-texto); box-shadow: var(--sombra); }
+.item-linha { display: grid; grid-template-columns: minmax(0, 1fr) 64px 92px 92px; gap: 6px; align-items: end; }
+@media (max-width: 520px) { .item-linha { grid-template-columns: 1fr 1fr 1fr; } .item-linha > :first-child { grid-column: 1 / -1; } }
+.opcao-motivo { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--borda); border-radius: 8px; cursor: pointer; }
+.opcao-motivo small { display: block; color: var(--tinta-apagada); }

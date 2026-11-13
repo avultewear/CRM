@@ -1,10 +1,14 @@
 # Avulte Wear — Sistema comercial
 
-Etapa 1 (Base) entregue: login, papéis, moldura e design system, dicionário de métricas,
-auditoria imutável, Metas e Equipe › Acessos. As demais abas já existem com cabeçalho,
-permissão e a tela vazia que ensina o primeiro passo; o conteúdo entra nas etapas seguintes.
+Entregue até aqui:
 
-O que foi testado e o resultado de cada item estão em `RELATORIO-ETAPA-1.md`.
+- **Etapa 1 (Base):** login, papéis, moldura e design system, dicionário de métricas, auditoria
+  imutável, Metas e Equipe › Acessos. Relatório em `RELATORIO-ETAPA-1.md`.
+- **Etapa 3 (Atendimento):** quadro com as 6 etapas, painel do lead, perdas com destino, rodízio,
+  follow como tarefa e venda direta confirmada pelos Sócios. Relatório em `RELATORIO-ETAPA-3.md`.
+
+A etapa 2 (loja ligada, Pedidos e Estoque) espera o plano da Hostinger e o código do site. As
+demais abas já existem com cabeçalho, permissão e a tela vazia que ensina o primeiro passo.
 
 ## Estrutura
 
@@ -45,7 +49,8 @@ em Equipe e desative as pessoas de teste.
 
 ```bash
 npm test          # API: usa um banco de TESTE (o nome precisa conter "teste") e o zera a cada execução
-npm run aceite    # navegador: precisa da API e das telas rodando e das pessoas do semear
+npm run aceite    # navegador, etapa 1: precisa da API e das telas rodando e das pessoas do semear
+npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem leads
 ```
 
 ## Decisões desta etapa

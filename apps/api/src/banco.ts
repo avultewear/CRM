@@ -55,11 +55,120 @@ export interface TabelaAuditoria {
   atualizadoEm: Generated<Date>;
 }
 
+export type Etapa = 'LEAD' | 'ABORDADO' | 'LEVANTAMENTO' | 'NEGOCIACAO' | 'VENDA' | 'RECUPERACAO';
+export type Situacao = 'ABERTA' | 'GANHA' | 'ENCERRADA' | 'DESCARTADA';
+
+export interface TabelaCliente {
+  id: Generated<string>;
+  nome: string;
+  telefone: string;
+  email: string | null;
+  cpf: string | null;
+  bloqueado: Generated<boolean>;
+  aceiteMensagens: Generated<boolean>;
+  aceiteEm: Date | null;
+  aceiteCanal: string | null;
+  vendedorId: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaOportunidade {
+  id: Generated<string>;
+  clienteId: string;
+  vendedorId: string | null;
+  tipo: Generated<string>;
+  etapa: Generated<Etapa>;
+  situacao: Generated<Situacao>;
+  entrouNaEtapaEm: Generated<Date>;
+  canal: string;
+  origem: string;
+  origemDetalhe: string | null;
+  interesse: string | null;
+  tamanho: string | null;
+  quantidade: number | null;
+  valor: Numerico;
+  cupom: string | null;
+  linkEnviadoEm: Date | null;
+  temperatura: string | null;
+  etiquetas: Generated<string[]>;
+  primeiraRespostaEm: Date | null;
+  motivoPerda: string | null;
+  destinoPerda: string | null;
+  perdidaEm: Date | null;
+  etapaDaPerda: string | null;
+  etapaAntesRecuperacao: Etapa | null;
+  tentativasRecuperacao: Generated<number>;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaHistoricoEtapa {
+  id: Generated<string>;
+  oportunidadeId: string;
+  etapaAnterior: string | null;
+  etapaNova: string;
+  entrouEm: Generated<Date>;
+  saiuEm: Date | null;
+  autorId: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaAtividade {
+  id: Generated<string>;
+  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO';
+  origem: Generated<string>;
+  oportunidadeId: string | null;
+  responsavelId: string;
+  titulo: string;
+  mensagem: string | null;
+  prazo: Date;
+  status: Generated<'ABERTA' | 'FEITA' | 'CANCELADA'>;
+  resultado: string | null;
+  concluidaEm: Date | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaNota {
+  id: Generated<string>;
+  oportunidadeId: string;
+  autorId: string;
+  texto: string;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaVendaDireta {
+  id: Generated<string>;
+  oportunidadeId: string;
+  clienteId: string;
+  vendedorId: string | null;
+  itens: unknown;
+  valorTabela: string | number;
+  valor: string | number;
+  formaPagamento: 'PIX' | 'DINHEIRO';
+  situacao: Generated<'AGUARDANDO' | 'CONFIRMADA' | 'CANCELADA'>;
+  lancadaPor: string;
+  decididaPor: string | null;
+  decididaEm: Date | null;
+  motivoRecusa: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
 export interface Tabelas {
   usuario: TabelaUsuario;
   parametro: TabelaParametro;
   historicoParametro: TabelaHistoricoParametro;
   auditoria: TabelaAuditoria;
+  cliente: TabelaCliente;
+  oportunidade: TabelaOportunidade;
+  historicoEtapa: TabelaHistoricoEtapa;
+  atividade: TabelaAtividade;
+  nota: TabelaNota;
+  vendaDireta: TabelaVendaDireta;
 }
 
 export type Banco = Kysely<Tabelas>;

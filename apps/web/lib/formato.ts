@@ -39,3 +39,33 @@ export async function chamar<T = unknown>(metodo: string, caminho: string, corpo
   if (!resposta.ok) throw new Error(dados.erro ?? 'Não foi possível concluir.');
   return dados as T;
 }
+
+/** Lê um número digitado no formato brasileiro (50.000,00) ou simples (50000). Vazio ou inválido vira null. */
+export function lerNumero(texto: FormDataEntryValue | string | null | undefined): number | null {
+  const limpo = String(texto ?? '').trim().replace(/\s|R\$|%/g, '');
+  if (!limpo) return null;
+  const n = Number(limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 5511988880001 → (11) 98888-0001 */
+export function emTelefone(digitos: string): string {
+  const d = digitos.startsWith('55') && digitos.length >= 12 ? digitos.slice(2) : digitos;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `+${digitos}`;
+}
+
+/** Tempo na etapa, curto: "menos de 1 h", "5 h", "3 d". */
+export function emTempo(horas: number): string {
+  if (horas < 1) return 'menos de 1 h';
+  if (horas < 48) return `${Math.round(horas)} h`;
+  return `${Math.round(horas / 24)} d`;
+}
+
+/** Valor curto para o card: "R$ 99". */
+export const valorCurto = (v: number) => `R$ ${Math.round(v).toLocaleString('pt-BR')}`;
+
+/** Abre a conversa no WhatsApp com a mensagem pronta. */
+export const linkWhatsApp = (telefone: string, mensagem?: string | null) =>
+  `https://wa.me/${telefone}${mensagem ? `?text=${encodeURIComponent(mensagem)}` : ''}`;

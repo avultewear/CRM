@@ -19,6 +19,12 @@ const MATRIZ: Record<string, Papel[]> = {
   // Cifras dos Sócios: pró-labore, comissões somadas, gasto com anúncios, custos e lucro.
   'cifras.ver': ['SOCIO'],
   'atendimento.ver': COMERCIAL,
+  // Ver os leads de todos os vendedores (o vendedor vê só os próprios).
+  'atendimento.todos': GESTAO,
+  // Confirmar ou recusar venda direta (Pix ou dinheiro).
+  'vendas.confirmar': ['SOCIO'],
+  // Ver o CPF completo de um cliente (cada acesso fica na auditoria).
+  'cpf.ver': ['SOCIO'],
   'pedidos.ver': COMERCIAL,
   'clientes.ver': COMERCIAL,
   'estoque.ver': ['SOCIO', 'GERENTE', 'VENDEDOR', 'SOCIAL_MEDIA'],

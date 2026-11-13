@@ -2,21 +2,14 @@ import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import jwt from 'jsonwebtoken';
-import type { Selectable } from 'kysely';
 import { z, ZodError } from 'zod';
-import { comoJson, type Banco, type TabelaUsuario } from './banco.js';
+import { registrarAtendimento } from './atendimento.js';
+import { comoJson, type Banco } from './banco.js';
+import { ErroHttp, type LinhaAuditoria, type Pedido, type Usuario } from './http.js';
 import { metricasPara } from './metricas.js';
 import { PAPEIS, permissoesDe, pode } from './papeis.js';
 import { CATALOGO_PARAMETROS, definicaoDe, validarParametro } from './parametros.js';
 
-type Usuario = Selectable<TabelaUsuario>;
-type Pedido = Request & { usuario: Usuario };
-
-class ErroHttp extends Error {
-  constructor(public status: number, mensagem: string) {
-    super(mensagem);
-  }
-}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const numero = (v: string | number | null) => (v === null ? null : Number(v));
@@ -90,7 +83,7 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
   };
 
   const auditar = (
-    banco: Banco, linhas: Array<{ entidade: string; entidadeId: string; acao: string; campo?: string; de?: unknown; para?: unknown; autorId: string }>,
+    banco: Banco, linhas: LinhaAuditoria[],
   ) => linhas.length === 0 ? Promise.resolve() : banco.insertInto('auditoria').values(linhas.map((l) => ({
     entidade: l.entidade, entidadeId: l.entidadeId, acao: l.acao, campo: l.campo ?? null, autorId: l.autorId,
     de: l.de === undefined || l.de === null ? null : comoJson(l.de),
@@ -282,10 +275,12 @@ export function criarApp({ db, jwtSegredo, origemWeb }: { db: Banco; jwtSegredo:
     res.json(await consulta.execute());
   }));
 
+  registrarAtendimento(app, { db, rota, autenticar, exigir, auditar });
+
   app.use((_req, _res, next) => next(new ErroHttp(404, 'Rota não encontrada.')));
 
   app.use((erro: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (erro instanceof ErroHttp) return res.status(erro.status).json({ erro: erro.message });
+    if (erro instanceof ErroHttp) return res.status(erro.status).json({ erro: erro.message, ...erro.extra });
     if (erro instanceof ZodError) return res.status(400).json({ erro: erro.issues[0]?.message ?? 'Dados inválidos.', detalhes: erro.issues });
     if (erro instanceof SyntaxError) return res.status(400).json({ erro: 'Corpo da requisição inválido.' });
     console.error(erro);
