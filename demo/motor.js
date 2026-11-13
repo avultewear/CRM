@@ -55,7 +55,10 @@
 
   function irParaRota(href) {
     var partes = href.split('?');
-    var id = (D.rotas[papel] || {})[partes[0]];
+    var rotas = D.rotas[papel] || {};
+    var sub = /(?:^|&)sub=([a-z]+)/.exec(partes[1] || '');
+    var modo = /(?:^|&)modo=([A-Z]+)/.exec(partes[1] || '');
+    var id = rotas[href] || (sub && modo && rotas[partes[0] + '?sub=' + sub[1] + '&modo=' + modo[1]]) || (sub && rotas[partes[0] + '?sub=' + sub[1]]) || rotas[partes[0]];
     if (!id) { avisar('O papel ' + seletorPapel.options[seletorPapel.selectedIndex].text + ' não tem acesso a esta tela.'); return; }
     mostrar(id);
     var ficha = /(?:^|&)ficha=([^&]+)/.exec(partes[1] || '');

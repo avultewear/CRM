@@ -1,0 +1,18 @@
+import puppeteer from 'puppeteer-core';
+import { readFileSync } from 'node:fs';
+const SENHA = readFileSync('apps/api/.env','utf8').match(/SEMENTE_SENHA="?([^"\n]+)/)[1];
+const [papel, rota, arquivo, tema, largura] = process.argv.slice(2);
+const n = await puppeteer.launch({ executablePath:'/usr/bin/google-chrome', headless:true, args:['--no-sandbox','--no-proxy-server'] });
+const p = await n.newPage(); await p.setViewport({width:Number(largura||1360),height:900});
+const erros=[]; p.on('pageerror',e=>erros.push(e.message)); p.on('console',m=>{ if(m.type()==='error') erros.push(m.text()); });
+await p.goto('http://localhost:3000/login',{waitUntil:'networkidle0'});
+await p.type('input[name=email]',`${papel}@avulte.teste`); await p.type('input[name=senha]',SENHA);
+await Promise.all([p.waitForNavigation({waitUntil:'networkidle0'}), p.click('button[type=submit]')]);
+if (tema==='escuro') await p.evaluate(()=>{document.documentElement.dataset.tema='escuro'});
+await p.goto('http://localhost:3000'+rota,{waitUntil:'networkidle0'});
+if (tema==='escuro') await p.evaluate(()=>{document.documentElement.dataset.tema='escuro'});
+await new Promise(r=>setTimeout(r,500));
+await p.screenshot({path:arquivo, fullPage:true});
+console.log('erros:', erros.slice(0,5));
+console.log('rolagem lateral:', await p.evaluate(()=>document.documentElement.scrollWidth > window.innerWidth));
+await n.close();

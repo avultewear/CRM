@@ -28,7 +28,9 @@ await p.keyboard.press('Escape');
 await p.select('#demo-papel', 'vendedor');
 const menu = await p.$$eval('[data-teste="menu-item"]', is => is.map(i => i.textContent.trim()));
 ok('ver como vendedor troca o menu: ' + menu.join(', '), menu.length === 5 && !menu.includes('Metas'));
-ok('vendedor vê só os próprios cards', (await p.$$('[data-teste="card"]')).length < 8);
+const cardsVendedor = (await p.$$('[data-teste="card"]')).length;
+await p.select('#demo-papel', 'socio'); const cardsSocio = (await p.$$('[data-teste="card"]')).length; await p.select('#demo-papel', 'vendedor');
+ok(`vendedor vê só os próprios cards (${cardsVendedor} de ${cardsSocio})`, cardsVendedor > 0 && cardsVendedor < cardsSocio);
 await p.click('a.item-menu[href="/pedidos"]');
 ok('tela futura com estado vazio', (await p.$('.vazia')) !== null);
 await p.select('#demo-papel', 'socio'); await p.click('a.item-menu[href="/financeiro"]');
@@ -38,11 +40,27 @@ ok('botão de gravar avisa que é demonstração', !(await p.$eval('#demo-aviso'
 await p.click('a.item-menu[href="/atendimento"]');
 await p.evaluate(() => [...document.querySelectorAll('.filtros .chip')].find(c => c.textContent.trim() === 'Recuperação').click());
 ok('filtro de fase esconde colunas', (await p.$$eval('.coluna-quadro', cs => cs.filter(c => c.style.display !== 'none').length)) === 1);
+// Etapa 6: Painel, Daily e Reuniões
+await p.select('#demo-papel', 'socio'); await p.click('a.item-menu[href="/painel"]');
+ok('painel abre em Hoje, com a fila de decisões', (await p.$$('[data-teste="decisao"]')).length > 0);
+await p.click('[data-teste="sub-painel"]');
+ok('sub-aba Painel: indicadores, gráficos e a jornada', (await p.$$('[data-teste="indicador"]')).length >= 10 && (await p.$$('[data-teste="faixa-etapa"]')).length === 6);
+await p.screenshot({ path: '/tmp/demo-10.png', fullPage: true });
+await p.click('[data-teste="sub-daily"]');
+ok('sub-aba Daily com os 7 blocos', (await p.$$('[data-teste="bloco-daily"]')).length === 7);
+await p.click('[data-teste="modo-EQUIPE"]');
+ok('modo Equipe do Daily', (await p.$eval('[data-teste="modo-EQUIPE"]', e => e.getAttribute('aria-current'))) === 'page');
+await p.click('a.item-menu[href="/reunioes"]');
+ok('reuniões com a ata e as decisões', (await p.$$('[data-teste="tarefa-reuniao"]')).length === 2);
+await p.select('#demo-papel', 'gerente'); await p.click('a.item-menu[href="/painel"]'); await p.click('[data-teste="sub-painel"]');
+const painelGerente = await p.$eval('#demo-palco', e => e.textContent);
+ok('gerente vê o Painel sem pró-labore nem lucro', !painelGerente.includes('Pró-labore') && !painelGerente.includes('Lucro') && painelGerente.includes('Receita'));
+await p.select('#demo-papel', 'socio');
 // Etapa 4: clientes, segmentos, ficha e trocas
 await p.click('a.item-menu[href="/clientes"]');
 const telaClientes = await p.$eval('#demo-palco', e => e.textContent);
 ok('clientes: lista com segmentos VIP, Em risco e Inativo e trocas em andamento',
-  (await p.$$('[data-teste="cliente"]')).length >= 7 && ['VIP', 'Em risco', 'Inativo', 'Recorrente'].every(s => telaClientes.includes(s)) && (await p.$$('[data-teste="troca-aberta"]')).length === 2);
+  (await p.$$('[data-teste="cliente"]')).length >= 7 && ['VIP', 'Em risco', 'Inativo', 'Novo'].every(s => telaClientes.includes(s)) && (await p.$$('[data-teste="troca-aberta"]')).length === 2);
 await p.screenshot({ path: '/tmp/demo-8.png', fullPage: true });
 await p.click('[data-teste="cliente"][data-nome="Larissa Pinto"]');
 const fichaLarissa = await p.$eval('[data-teste="ficha-cliente"]', e => e.textContent);

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 export type TipoParametro = 'moeda' | 'percentual' | 'inteiro' | 'texto' | 'json';
 
 export interface DefParametro {
@@ -39,6 +40,15 @@ export const CATALOGO_PARAMETROS: DefParametro[] = [
   p('Painel', 'daily_config', 'json', 'Configuração do Daily', 'Ordem e tempo dos blocos da reunião.'),
 ];
 
+const BLOCOS_DAILY = ['RESULTADO', 'ATENDIMENTO', 'VENDEDORES', 'TRAFEGO', 'SOCIAL', 'CLIENTES', 'GESTAO'] as const;
+const configDaily = z.array(z.object({ id: z.enum(BLOCOS_DAILY), minutos: z.number().int().min(1).max(30) }).strict()).min(1).max(7)
+  .refine((l) => new Set(l.map((b) => b.id)).size === l.length, 'Cada bloco aparece uma vez só.');
+/** Ordem e tempo dos blocos do Daily. Ex.: [{"id":"RESULTADO","minutos":3}, …] */
+export const validarDailyConfig = (valor: unknown) => configDaily.safeParse(valor);
+const metasPorEtapa = z.record(z.enum(['LEAD', 'ABORDADO', 'LEVANTAMENTO', 'NEGOCIACAO', 'RECUPERACAO']), z.number().min(0).max(100));
+/** Conversão esperada (%) por etapa. Ex.: {"LEAD": 60, "ABORDADO": 50} */
+export const validarMetasPorEtapa = (valor: unknown) => metasPorEtapa.safeParse(valor);
+
 const PORCHAVE = new Map(CATALOGO_PARAMETROS.map((d) => [d.chave, d]));
 export const definicaoDe = (chave: string) => PORCHAVE.get(chave);
 
@@ -59,6 +69,10 @@ export function validarParametro(chave: string, valor: unknown): { ok: boolean; 
       return typeof valor === 'string' && valor.trim().length > 0 && valor.length <= 280
         ? { ok: true } : { ok: false, erro: 'Informe um texto de até 280 caracteres.' };
     case 'json':
+      if (chave === 'daily_config') return validarDailyConfig(valor).success ? { ok: true }
+        : { ok: false, erro: 'Informe os blocos do Daily na ordem, cada um com os minutos. Ex.: [{"id":"RESULTADO","minutos":3}]' };
+      if (chave === 'metas_por_etapa') return validarMetasPorEtapa(valor).success ? { ok: true }
+        : { ok: false, erro: 'Informe a conversão esperada (0 a 100) por etapa. Ex.: {"LEAD": 60, "ABORDADO": 50}' };
       return typeof valor === 'object' && valor !== null ? { ok: true } : { ok: false, erro: 'Informe uma estrutura válida.' };
   }
 }

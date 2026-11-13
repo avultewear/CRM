@@ -60,7 +60,9 @@ async function semearDemo() {
   const exemplo = 'Valor de exemplo para a demonstração';
   for (const [chave, valor] of [['meta_faturamento_mensal', 20000], ['tempo_maximo_etapa_horas', 48], ['recuperacao_tentativas', 3], ['limite_desconto_pct', 10],
     ['prolabore_pct', 10], ['comissao_vendedor_pct', 5], ['comissao_vendedor_teto', 800], ['comissao_influenciador_pct', 10], ['comissao_influenciador_teto', 500], ['prazo_troca_dias', 7],
-    ['segmento_em_risco_dias', 60], ['segmento_inativo_dias', 120], ['segmento_vip_pct', 20], ['recompra_dias', 45]]) {
+    ['segmento_em_risco_dias', 60], ['segmento_inativo_dias', 120], ['segmento_vip_pct', 20], ['recompra_dias', 45],
+    ['meta_faturamento_anual', 240000], ['frase_motivacional', 'Cada treino conta. Cada cliente também.'],
+    ['metas_por_etapa', { LEAD: 70, ABORDADO: 60, LEVANTAMENTO: 60, NEGOCIACAO: 50, RECUPERACAO: 30 }]]) {
     await socio('PUT', `/parametros/${chave}`, { valor, justificativa: exemplo });
   }
   // Segundo vendedor, para o rodízio e o filtro por vendedor.
@@ -174,6 +176,16 @@ async function semearDemo() {
     await socio('POST', `/vendas-diretas/${v.id}/confirmar`, {});
     antigos.push({ venda: v.id, dias });
   }
+
+  // Custos do mês (Sócios) e um Daily já encerrado, com ata e decisões (etapa 6)
+  const mesDemo = hoje().slice(0, 7);
+  await socio('POST', '/custos', { competencia: mesDemo, categoria: 'PRODUCAO', descricao: 'Lote de regatas e camisetas', valor: 380 });
+  await socio('POST', '/custos', { competencia: mesDemo, categoria: 'FERRAMENTAS', descricao: 'Sistema de e-mail e domínio', valor: 59.9 });
+  const daily = await gerente('POST', '/reunioes', { modo: 'GESTAO' });
+  await gerente('POST', `/reunioes/${daily.id}/tratados`, { bloco: 'GESTAO', item: 'Vendas diretas a confirmar' });
+  await gerente('POST', `/reunioes/${daily.id}/decisoes`, { bloco: 'VENDEDORES', texto: 'Ligar para os links enviados sem compra', responsavelId: ana.id, prazo: hoje(1) });
+  await gerente('POST', `/reunioes/${daily.id}/decisoes`, { bloco: 'CLIENTES', texto: 'Chamar de volta os clientes em risco', responsavelId: lucas.id, prazo: hoje(2) });
+  await gerente('POST', `/reunioes/${daily.id}/encerrar`, { pulados: ['TRAFEGO', 'SOCIAL'], numeros: [{ bloco: 'RESULTADO', linhas: [{ rotulo: 'Vendas de ontem', valor: '2' }] }] });
 
   // Recuperação
   const helena = await lead('Helena Duarte', { canal: 'INSTAGRAM', origem: 'INFLUENCIADOR', origemDetalhe: 'Cupom de influenciadora', interesse: 'Jaqueta Training', tamanho: 'P' }, lucas.id);
@@ -379,6 +391,8 @@ async function capturar() {
 
       const rotas = await pagina.$$eval('[data-teste="menu-item"]', (as) => as.map((a) => a.getAttribute('href')));
       if (papel.id === 'socio') rotas.push('/componentes');
+      // Sub-abas do Painel: cada uma vira uma tela da demonstração.
+      if (rotas.includes('/painel')) rotas.push('/painel?sub=painel', '/painel?sub=daily', '/painel?sub=daily&modo=EQUIPE');
       demo.rotas[papel.id] = {}; demo.sobre[papel.id] = {};
       for (const rota of rotas) {
         const id = `${papel.id}-${rota.slice(1).replace(/[^a-z0-9]+/g, '-')}`;

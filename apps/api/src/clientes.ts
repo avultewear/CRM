@@ -121,13 +121,13 @@ export async function aoConfirmarVenda(trx: Banco, vendaDiretaId: string, quando
 
 const comprasValidas = (banco: Banco) => banco.selectFrom('vendaDireta').where('situacao', '=', 'CONFIRMADA').where('devolvidaEm', 'is', null);
 
-async function resumoDeCompras(banco: Banco): Promise<ResumoCompras[]> {
+export async function resumoDeCompras(banco: Banco): Promise<ResumoCompras[]> {
   const linhas = await comprasValidas(banco).select(['clienteId'])
     .select((eb) => [eb.fn.countAll<string>().as('compras'), eb.fn.sum<string>('valor').as('total'), eb.fn.max('decididaEm').as('ultima')])
     .groupBy('clienteId').execute();
   return linhas.map((l) => ({ clienteId: l.clienteId, compras: Number(l.compras), total: centavos(Number(l.total)), ultimaCompra: l.ultima as Date }));
 }
-async function lerLimites(banco: Banco): Promise<Limites> {
+export async function lerLimites(banco: Banco): Promise<Limites> {
   return {
     emRiscoDias: await parametroNumero(banco, 'segmento_em_risco_dias'),
     inativoDias: await parametroNumero(banco, 'segmento_inativo_dias'),

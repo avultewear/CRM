@@ -14,6 +14,10 @@ Entregue até aqui:
   direta, pró-labore e comissões com teto e liberação, Financeiro dos Sócios e o espaço do
   influenciador. Por enquanto a fonte das vendas é a venda direta. Relatório em `RELATORIO-ETAPA-5.md`.
 
+- **Etapa 6 (Painel, Daily, Reuniões e lucro):** sub-abas Hoje, Daily e Painel, com indicadores,
+  gráficos, a jornada no funil, o Daily com decisões que viram tarefa, as atas em Reuniões e os custos
+  do mês com o lucro no Financeiro. Relatório em `RELATORIO-ETAPA-6.md`.
+
 A etapa 2 (loja ligada, Pedidos e Estoque) espera o plano da Hostinger e o código do site. As
 demais abas já existem com cabeçalho, permissão e a tela vazia que ensina o primeiro passo.
 
@@ -60,6 +64,7 @@ npm run aceite    # navegador, etapa 1: precisa da API e das telas rodando e das
 npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem leads
 npm run aceite:5  # navegador, etapa 5: banco recém-semeado; pode rodar logo depois dos outros dois
 npm run aceite:4  # navegador, etapa 4: logo depois do aceite:5, no mesmo banco (usa os clientes dele)
+npm run aceite:6  # navegador, etapa 6: logo depois do aceite:4, no mesmo banco (confere os números com o banco)
 ```
 
 ## Rotina do dia

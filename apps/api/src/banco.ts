@@ -97,6 +97,34 @@ export interface TabelaTroca {
   atualizadoEm: Generated<Date>;
 }
 
+export type CategoriaCusto = 'PRODUCAO' | 'EMBALAGEM' | 'FRETE' | 'MARKETING' | 'FERRAMENTAS' | 'PESSOAL' | 'IMPOSTOS' | 'OUTROS';
+export interface TabelaCustoMes {
+  id: Generated<string>;
+  competencia: string;
+  categoria: CategoriaCusto;
+  descricao: string;
+  valor: string | number;
+  criadoPor: string;
+  anuladoEm: Date | null;
+  anuladoPor: string | null;
+  motivoAnulacao: string | null;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
+export interface TabelaReuniao {
+  id: Generated<string>;
+  tipo: Generated<'DAILY'>;
+  modo: 'GESTAO' | 'EQUIPE';
+  abertaPor: string;
+  iniciadaEm: Generated<Date>;
+  encerradaEm: Date | null;
+  ata: unknown;
+  tratados: Generated<unknown>;
+  criadoEm: Generated<Date>;
+  atualizadoEm: Generated<Date>;
+}
+
 export interface TabelaBrinde {
   id: Generated<string>;
   clienteId: string;
@@ -153,12 +181,14 @@ export interface TabelaHistoricoEtapa {
 
 export interface TabelaAtividade {
   id: Generated<string>;
-  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO' | 'SEQUENCIA';
+  tipo: 'FOLLOW' | 'LEMBRETE' | 'PRIMEIRO_CONTATO' | 'SEQUENCIA' | 'DECISAO';
   origem: Generated<string>;
   oportunidadeId: string | null;
   clienteId: string | null;
   sequencia: 'POS_COMPRA' | 'RECOMPRA' | 'EM_RISCO' | null;
   referencia: string | null;
+  reuniaoId: string | null;
+  bloco: string | null;
   responsavelId: string;
   titulo: string;
   mensagem: string | null;
@@ -284,6 +314,8 @@ export interface Tabelas {
   combinadoPosts: TabelaCombinadoPosts;
   troca: TabelaTroca;
   brinde: TabelaBrinde;
+  custoMes: TabelaCustoMes;
+  reuniao: TabelaReuniao;
 }
 
 export type Banco = Kysely<Tabelas>;

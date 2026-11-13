@@ -780,58 +780,66 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
   app.get('/atendimento/funil', ...ver, rota(async (req, res) => {
     const filtro = z.object({ inicio: z.coerce.date(), fim: z.coerce.date(), vendedorId: z.string().regex(UUID).optional() }).parse(req.query);
     const vendedorId = veTodos(req.usuario) ? filtro.vendedorId : req.usuario.id;
-
-    let noPeriodo = db.selectFrom('historicoEtapa as h').innerJoin('oportunidade as o', 'o.id', 'h.oportunidadeId')
-      .select(['h.oportunidadeId', 'h.etapaNova', 'h.entrouEm', 'h.saiuEm'])
-      .where('o.situacao', '!=', 'DESCARTADA').where('h.entrouEm', '>=', filtro.inicio).where('h.entrouEm', '<', filtro.fim);
-    if (vendedorId) noPeriodo = noPeriodo.where('o.vendedorId', '=', vendedorId);
-    const passagens = await noPeriodo.execute();
-    const ids = [...new Set(passagens.map((p) => p.oportunidadeId))];
-    const todas = ids.length
-      ? await db.selectFrom('historicoEtapa').select(['oportunidadeId', 'etapaNova', 'entrouEm']).where('oportunidadeId', 'in', ids).execute()
-      : [];
-
-    let perdidas = db.selectFrom('oportunidade').select(['etapaDaPerda', 'motivoPerda'])
-      .where('situacao', '!=', 'DESCARTADA').where('perdidaEm', '>=', filtro.inicio).where('perdidaEm', '<', filtro.fim).where('motivoPerda', 'is not', null);
-    if (vendedorId) perdidas = perdidas.where('vendedorId', '=', vendedorId);
-    const perdas = await perdidas.execute();
-
-    const etapas = ETAPAS.map((etapa) => {
-      const entradas = new Map<string, number>(); // oportunidade → primeira entrada na etapa, dentro do período
-      for (const p of passagens) {
-        if (p.etapaNova !== etapa.id) continue;
-        const t = new Date(p.entrouEm).getTime();
-        if (!entradas.has(p.oportunidadeId) || t < entradas.get(p.oportunidadeId)!) entradas.set(p.oportunidadeId, t);
-      }
-      // "Avançou" = entrou depois na etapa seguinte. Na Recuperação, "avançou" = voltou para a jornada.
-      const i = ORDEM.indexOf(etapa.id);
-      const seguintes: string[] = etapa.id === 'RECUPERACAO' ? ORDEM : i >= 0 && i < ORDEM.length - 1 ? [ORDEM[i + 1]] : [];
-      const avancaram = new Set<string>();
-      for (const h of todas) {
-        const entrada = entradas.get(h.oportunidadeId);
-        if (entrada !== undefined && seguintes.includes(h.etapaNova) && new Date(h.entrouEm).getTime() >= entrada) avancaram.add(h.oportunidadeId);
-      }
-      const tempos = passagens
-        .filter((p) => p.etapaNova === etapa.id && p.saiuEm && new Date(p.saiuEm).getTime() > new Date(p.entrouEm).getTime())
-        .map((p) => emHoras(new Date(p.saiuEm!).getTime() - new Date(p.entrouEm).getTime()));
-      const motivos = new Map<string, number>();
-      for (const p of perdas) if (p.etapaDaPerda === etapa.id) motivos.set(p.motivoPerda!, (motivos.get(p.motivoPerda!) ?? 0) + 1);
-      const totalPerdas = [...motivos.values()].reduce((s, n) => s + n, 0);
-      const tempo = mediana(tempos);
-      return {
-        etapa: etapa.id, nome: etapa.nome, fase: etapa.fase,
-        entraram: entradas.size,
-        avancaram: seguintes.length ? avancaram.size : null,
-        // Sem dado no período, a conversão é nula (a tela mostra "—", nunca 0% nem −100%).
-        conversaoPct: seguintes.length && entradas.size ? Math.round((avancaram.size / entradas.size) * 1000) / 10 : null,
-        tempoMedianoHoras: tempo === null ? null : Math.round(tempo * 10) / 10,
-        perdas: {
-          total: totalPerdas,
-          motivos: [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
-            .map(([id, quantidade]) => ({ motivo: id, nome: motivoPorId(id)?.nome ?? id, quantidade })),
-        },
-      };
-    });
+    const etapas = await calcularFunil(db, filtro.inicio, filtro.fim, vendedorId);
     res.json({ inicio: filtro.inicio, fim: filtro.fim, etapas });
   }));
+}
+
+/** Funil: conversões, perdas e tempos, sempre a partir do histórico de etapas. Usado pelo Atendimento e pelo Painel. */
+export async function calcularFunil(db: Banco, inicio: Date, fim: Date, vendedorId?: string, canal?: string) {
+  const filtro = { inicio, fim };
+  let noPeriodo = db.selectFrom('historicoEtapa as h').innerJoin('oportunidade as o', 'o.id', 'h.oportunidadeId')
+    .select(['h.oportunidadeId', 'h.etapaNova', 'h.entrouEm', 'h.saiuEm'])
+    .where('o.situacao', '!=', 'DESCARTADA').where('h.entrouEm', '>=', filtro.inicio).where('h.entrouEm', '<', filtro.fim);
+  if (vendedorId) noPeriodo = noPeriodo.where('o.vendedorId', '=', vendedorId);
+  if (canal) noPeriodo = noPeriodo.where('o.canal', '=', canal as 'WHATSAPP');
+  const passagens = await noPeriodo.execute();
+  const ids = [...new Set(passagens.map((p) => p.oportunidadeId))];
+  const todas = ids.length
+    ? await db.selectFrom('historicoEtapa').select(['oportunidadeId', 'etapaNova', 'entrouEm']).where('oportunidadeId', 'in', ids).execute()
+    : [];
+
+  let perdidas = db.selectFrom('oportunidade').select(['etapaDaPerda', 'motivoPerda'])
+    .where('situacao', '!=', 'DESCARTADA').where('perdidaEm', '>=', filtro.inicio).where('perdidaEm', '<', filtro.fim).where('motivoPerda', 'is not', null);
+  if (vendedorId) perdidas = perdidas.where('vendedorId', '=', vendedorId);
+  if (canal) perdidas = perdidas.where('canal', '=', canal as 'WHATSAPP');
+  const perdas = await perdidas.execute();
+
+  const etapas = ETAPAS.map((etapa) => {
+    const entradas = new Map<string, number>(); // oportunidade → primeira entrada na etapa, dentro do período
+    for (const p of passagens) {
+      if (p.etapaNova !== etapa.id) continue;
+      const t = new Date(p.entrouEm).getTime();
+      if (!entradas.has(p.oportunidadeId) || t < entradas.get(p.oportunidadeId)!) entradas.set(p.oportunidadeId, t);
+    }
+    // "Avançou" = entrou depois na etapa seguinte. Na Recuperação, "avançou" = voltou para a jornada.
+    const i = ORDEM.indexOf(etapa.id);
+    const seguintes: string[] = etapa.id === 'RECUPERACAO' ? ORDEM : i >= 0 && i < ORDEM.length - 1 ? [ORDEM[i + 1]] : [];
+    const avancaram = new Set<string>();
+    for (const h of todas) {
+      const entrada = entradas.get(h.oportunidadeId);
+      if (entrada !== undefined && seguintes.includes(h.etapaNova) && new Date(h.entrouEm).getTime() >= entrada) avancaram.add(h.oportunidadeId);
+    }
+    const tempos = passagens
+      .filter((p) => p.etapaNova === etapa.id && p.saiuEm && new Date(p.saiuEm).getTime() > new Date(p.entrouEm).getTime())
+      .map((p) => emHoras(new Date(p.saiuEm!).getTime() - new Date(p.entrouEm).getTime()));
+    const motivos = new Map<string, number>();
+    for (const p of perdas) if (p.etapaDaPerda === etapa.id) motivos.set(p.motivoPerda!, (motivos.get(p.motivoPerda!) ?? 0) + 1);
+    const totalPerdas = [...motivos.values()].reduce((s, n) => s + n, 0);
+    const tempo = mediana(tempos);
+    return {
+      etapa: etapa.id, nome: etapa.nome, fase: etapa.fase,
+      entraram: entradas.size,
+      avancaram: seguintes.length ? avancaram.size : null,
+      // Sem dado no período, a conversão é nula (a tela mostra "—", nunca 0% nem −100%).
+      conversaoPct: seguintes.length && entradas.size ? Math.round((avancaram.size / entradas.size) * 1000) / 10 : null,
+      tempoMedianoHoras: tempo === null ? null : Math.round(tempo * 10) / 10,
+      perdas: {
+        total: totalPerdas,
+        motivos: [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+          .map(([id, quantidade]) => ({ motivo: id, nome: motivoPorId(id)?.nome ?? id, quantidade })),
+      },
+    };
+  });
+  return etapas;
 }

@@ -57,10 +57,8 @@ export interface AbaFutura {
 
 /** Abas que entram nas próximas etapas. Já existem com cabeçalho, permissão e tela vazia. */
 export const ABAS_FUTURAS: Record<string, AbaFutura> = {
-  painel: { nome: 'Painel', pergunta: 'Como está o negócio e o que depende de mim?', paraQuem: 'Sócios e Gerente', permissoes: ['painel.ver'], etapa: 6, vazio: 'Aqui entram a previsão de fechamento, os indicadores, a jornada no funil e o Daily. Primeiro passo: definir as metas do mês e do ano em Metas.' },
   pedidos: { nome: 'Pedidos e pós-venda', pergunta: 'O que foi vendido, o que falta enviar e o que voltou?', paraQuem: 'Sócios e Gerente; cada vendedor vê os próprios', permissoes: ['pedidos.ver'], etapa: 2, vazio: 'Nenhum pedido ainda. Eles aparecem aqui assim que a loja vender. Primeiro passo: ligar a loja da Hostinger ao sistema.' },
   estoque: { nome: 'Estoque', pergunta: 'O que temos, o que está parado, o que vai faltar e o que os clientes pedem?', paraQuem: 'Sócios, Gerente, vendedores e social media', permissoes: ['estoque.ver'], etapa: 2, vazio: 'Cadastre os produtos na loja da Hostinger. Eles aparecem aqui com giro, cobertura e alerta de ruptura.' },
   trafego: { nome: 'Tráfego', pergunta: 'O dinheiro em anúncio está virando venda?', paraQuem: 'Gestor de tráfego e Sócios', permissoes: ['trafego.ver'], etapa: 7, vazio: 'Aqui entra a auditoria do tráfego pago. Primeiro passo: um Sócio conecta a conta de anúncios da Meta.' },
   social: { nome: 'Social Media', pergunta: 'O que publicar hoje e o que funcionou?', paraQuem: 'Sócios (análise), social media (trabalho) e Gerente (aprovação)', permissoes: ['social.analise', 'social.espaco', 'social.aprovar'], etapa: 8, vazio: 'Aqui entram a análise do Instagram, o calendário e as pautas. Primeiro passo: conectar a conta Instagram Business.' },
-  reunioes: { nome: 'Reuniões', pergunta: 'O que foi decidido em cada Daily?', paraQuem: 'Sócios e Gerente', permissoes: ['reunioes.ver'], etapa: 6, vazio: 'As atas do Daily e as tarefas criadas em cada uma aparecem aqui depois da primeira reunião.' },
 };
