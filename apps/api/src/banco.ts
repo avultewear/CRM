@@ -148,6 +148,10 @@ export interface TabelaOportunidade {
   canal: string;
   origem: string;
   origemDetalhe: string | null;
+  campanhaId: string | null;
+  conjuntoId: string | null;
+  anuncioId: string | null;
+  anuncioTitulo: string | null;
   interesse: string | null;
   tamanho: string | null;
   quantidade: number | null;
@@ -296,6 +300,30 @@ export interface TabelaCombinadoPosts {
   atualizadoEm: Generated<Date>;
 }
 
+type Num = string | number;
+export interface TabelaMetaConexao {
+  id: Generated<string>; contaId: string; contaNome: string | null; moeda: string | null; fuso: string | null;
+  tokenCifrado: string; conectadaPor: string; ativa: Generated<boolean>; ultimoDiagnostico: unknown; diagnosticadaEm: Date | null;
+  sincronizadaEm: Date | null; historicoAte: string | null; ultimoErro: string | null; criadoEm: Generated<Date>; atualizadoEm: Generated<Date>;
+}
+export interface TabelaAnuncioCampanha { id: string; nome: string; objetivo: string | null; status: string | null; orcamentoDiario: Num | null; atualizadoEm: Generated<Date> }
+export interface TabelaAnuncioConjunto {
+  id: string; campanhaId: string; nome: string; status: string | null; otimizacao: string | null; orcamentoDiario: Num | null;
+  faseAprendizado: string | null; publico: unknown; atualizadoEm: Generated<Date>;
+}
+export interface TabelaAnuncio {
+  id: string; conjuntoId: string; nome: string; titulo: string | null; status: string | null; formato: string | null; miniaturaUrl: string | null;
+  rankingQualidade: string | null; rankingEngajamento: string | null; rankingConversao: string | null; atualizadoEm: Generated<Date>;
+}
+export interface TabelaAnuncioDia {
+  anuncioId: string; dia: string; investimento: Num; impressoes: number; alcance: number | null; cliquesLink: number; conversas: number;
+  conversasProfundas: number | null; videoPlays: number | null; videoP25: number | null; videoP50: number | null; videoP75: number | null; videoP100: number | null;
+  atualizadoEm: Generated<Date>;
+}
+export type DimensaoPublico = 'IDADE_GENERO' | 'REGIAO' | 'POSICIONAMENTO' | 'DISPOSITIVO' | 'HORARIO';
+export interface TabelaAnuncioPublicoDia { dia: string; dimensao: DimensaoPublico; chave: string; investimento: Num; impressoes: number; cliquesLink: number; conversas: number }
+export interface TabelaGastoManual { id: Generated<string>; competencia: string; valor: Num; criadoPor: string; substituidoEm: Date | null; criadoEm: Generated<Date> }
+
 export interface Tabelas {
   usuario: TabelaUsuario;
   parametro: TabelaParametro;
@@ -316,6 +344,13 @@ export interface Tabelas {
   brinde: TabelaBrinde;
   custoMes: TabelaCustoMes;
   reuniao: TabelaReuniao;
+  metaConexao: TabelaMetaConexao;
+  anuncioCampanha: TabelaAnuncioCampanha;
+  anuncioConjunto: TabelaAnuncioConjunto;
+  anuncio: TabelaAnuncio;
+  anuncioDia: TabelaAnuncioDia;
+  anuncioPublicoDia: TabelaAnuncioPublicoDia;
+  gastoManual: TabelaGastoManual;
 }
 
 export type Banco = Kysely<Tabelas>;

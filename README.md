@@ -17,6 +17,11 @@ Entregue até aqui:
 - **Etapa 6 (Painel, Daily, Reuniões e lucro):** sub-abas Hoje, Daily e Painel, com indicadores,
   gráficos, a jornada no funil, o Daily com decisões que viram tarefa, as atas em Reuniões e os custos
   do mês com o lucro no Financeiro. Relatório em `RELATORIO-ETAPA-6.md`.
+- **Etapa 7 (Tráfego):** conexão com a conta de anúncios da Meta (token cifrado, diagnóstico,
+  sincronização diária e 90 dias de histórico), gasto digitado quando não há conexão, e a auditoria em
+  10 seções: resumo com nota, jornada até o lead, indicadores, onde melhorar, públicos, criativos,
+  campanhas, dia a dia e qualidade das conversas. O lead de anúncio guarda o anúncio de origem.
+  Relatório em `RELATORIO-ETAPA-7.md`.
 
 A etapa 2 (loja ligada, Pedidos e Estoque) espera o plano da Hostinger e o código do site. As
 demais abas já existem com cabeçalho, permissão e a tela vazia que ensina o primeiro passo.
@@ -65,6 +70,7 @@ npm run aceite:3  # navegador, etapa 3: precisa do banco recém-semeado, sem lea
 npm run aceite:5  # navegador, etapa 5: banco recém-semeado; pode rodar logo depois dos outros dois
 npm run aceite:4  # navegador, etapa 4: logo depois do aceite:5, no mesmo banco (usa os clientes dele)
 npm run aceite:6  # navegador, etapa 6: logo depois do aceite:4, no mesmo banco (confere os números com o banco)
+npm run aceite:7  # navegador, etapa 7: logo depois do aceite:6, no mesmo banco (grava números de anúncio fictícios direto no banco)
 ```
 
 ## Rotina do dia
@@ -73,10 +79,14 @@ npm run aceite:6  # navegador, etapa 6: logo depois do aceite:4, no mesmo banco 
 comissões cujo prazo de troca venceu e cria as tarefas de recompra e de cliente em risco. Quando o sistema for publicado, um agendador chama essa rota
 uma vez por dia. Sem `ROTINA_SEGREDO` definido, a rota recusa todas as chamadas.
 
+`POST /rotinas/trafego`, com o mesmo cabeçalho, puxa da Meta a estrutura (campanhas, conjuntos e
+anúncios), os números dos últimos 3 dias e mais um bloco de 15 dias do histórico, até completar 90 dias.
+O agendador chama essa rota uma vez por dia, de madrugada.
+
 ## Demonstração clicável
 
 `npm run demo` entra no sistema rodando, preenche o banco de desenvolvimento com dados fictícios,
-retrata cada tela com quatro papéis (Sócio, Gerente, Vendedor e Influenciador) e monta uma página só, navegável, em
+retrata cada tela com cinco papéis (Sócio, Gerente, Vendedor, Influenciador e Gestor de tráfego) e monta uma página só, navegável, em
 `demo/saida/index.html`. Ela serve para acompanhar o visual; nada é gravado nela.
 
 ## Decisões desta etapa
@@ -99,6 +109,8 @@ retrata cada tela com quatro papéis (Sócio, Gerente, Vendedor e Influenciador)
 | API | `PORTA` | porta da API (padrão 4000) |
 | API | `SEMENTE_SENHA` | senha das pessoas fictícias do `semear` |
 | API | `ROTINA_SEGREDO` | segredo da rotina do dia (16 caracteres ou mais, aleatório) |
+| API | `META_CHAVE` | chave que cifra o token da Meta no banco (32 caracteres ou mais, aleatória). Sem ela, não dá para conectar |
+| API | `META_API_VERSAO` | versão da API de Marketing da Meta (padrão `v26.0`) |
 | Telas | `API_URL` | endereço da API |
 
 Chaves e senhas ficam só nas variáveis de ambiente, nunca no código.

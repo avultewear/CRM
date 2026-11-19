@@ -152,9 +152,10 @@ describe('indicadores', () => {
     expect(hoje.agora).not.toHaveProperty('pro_labore');
     expect(hoje.areas).not.toHaveProperty('financeiro');
   });
-  test('indicadores de tráfego aparecem com "—" e o aviso da etapa 7', async () => {
+  test('sem anúncio conectado nem gasto digitado, os indicadores de tráfego ficam "—" (nunca zero inventado)', async () => {
     const r = (await api.get('socio', '/painel/indicadores')).body;
-    expect(indicador(r, 'roas')).toMatchObject({ valor: null, pendente: expect.stringContaining('etapa 7') });
+    expect(indicador(r, 'roas')).toMatchObject({ valor: null });
+    expect(indicador(r, 'gasto_anuncios')).toMatchObject({ valor: null });
   });
   test('mês que ainda não começou é recusado', async () => {
     expect((await api.get('socio', '/painel/indicadores?mes=2099-01')).status).toBe(400);
@@ -251,7 +252,8 @@ describe('Daily e Reuniões', () => {
     let r = (await api.get('gerente', '/daily')).body;
     expect(r.blocos.map((b: { id: string }) => b.id)).toEqual(['RESULTADO', 'ATENDIMENTO', 'VENDEDORES', 'TRAFEGO', 'SOCIAL', 'CLIENTES', 'GESTAO']);
     expect(r.totalMinutos).toBe(30);
-    expect(r.blocos.find((b: { id: string }) => b.id === 'TRAFEGO').numeros[0].pendente).toBe('etapa 7');
+    expect(r.blocos.find((b: { id: string }) => b.id === 'TRAFEGO').numeros[0].rotulo).toBe('Leads de anúncio ontem');   // o Gerente não vê gasto
+    expect(r.blocos.find((b: { id: string }) => b.id === 'SOCIAL').numeros[0].pendente).toBe('etapa 8');
     expect((await api.put('socio', '/parametros/daily_config', { valor: [{ id: 'X', minutos: 3 }], justificativa: 'teste' })).status).toBe(400);
     expect((await api.put('socio', '/parametros/daily_config', { valor: [{ id: 'GESTAO', minutos: 5 }, { id: 'RESULTADO', minutos: 2 }], justificativa: 'Valor fictício do teste' })).status).toBe(200);
     r = (await api.get('gerente', '/daily')).body;

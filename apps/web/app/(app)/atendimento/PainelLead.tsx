@@ -121,6 +121,11 @@ export function PainelLead({ id, versao, config, gestao, vendedores, fechar, aca
           Na etapa há {emTempo(d.horasNaEtapa)} · {d.vendedorNome ? `com ${d.vendedorNome}` : 'sem vendedor'}
           {d.motivoPerda ? ` · motivo: ${config.motivos.find((m) => m.id === d.motivoPerda)?.nome ?? d.motivoPerda}` : ''}
         </p>
+        <p className="apagado" data-teste="origem-do-lead">
+          Origem: {config.origens.find((o) => o.id === d.origem)?.nome ?? d.origem}
+          {d.anuncio ? ` · anúncio "${d.anuncio.titulo ?? d.anuncio.id}"` : d.origem === 'ANUNCIO' ? ' · anúncio não informado' : ''}
+          {d.origemDetalhe ? ` · ${d.origemDetalhe}` : ''}
+        </p>
 
         {aberta && (
           <div className="secao">

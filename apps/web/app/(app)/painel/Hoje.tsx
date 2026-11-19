@@ -12,7 +12,7 @@ export interface DadosHoje {
   areas: {
     comercial: { leadsAbertos: number; semResposta: number; vendasDoMes: number };
     clientes: { ativos: number; taxaRecompra: number | null; emRisco: number | null };
-    marketing: { vendasComCupom: number; trafego: string; social: string };
+    marketing: { vendasComCupom: number; social: string; leadsDeAnuncio: string | number; gastoAnuncios?: number | null; orcamentoAnuncios?: number | null };
     financeiro?: { aPagar: number; custosDoMes: number; lucro: number | null };
     porOrigem: Array<{ origem: string; receita: number }>;
   };
@@ -91,7 +91,9 @@ export function Hoje({ dados, socio, metas }: { dados: DadosHoje; socio: boolean
           <h2>Marketing</h2>
           <div className="fila">
             {linha('Vendas com cupom no mês', String(dados.areas.marketing.vendasComCupom), '/influenciadores')}
-            {linha('Tráfego', dados.areas.marketing.trafego, '/trafego')}
+            {linha('Leads de anúncio no mês', String(dados.areas.marketing.leadsDeAnuncio), '/trafego')}
+            {dados.areas.marketing.gastoAnuncios !== undefined && linha('Gasto com anúncios no mês',
+              dados.areas.marketing.gastoAnuncios === null ? '—' : `${emReais(dados.areas.marketing.gastoAnuncios)}${dados.areas.marketing.orcamentoAnuncios ? ` de ${emReais(dados.areas.marketing.orcamentoAnuncios)}` : ''}`, '/trafego')}
             {linha('Social Media', dados.areas.marketing.social, '/social')}
           </div>
         </section>

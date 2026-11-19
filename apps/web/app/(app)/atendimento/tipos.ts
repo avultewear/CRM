@@ -12,6 +12,7 @@ export interface Oportunidade {
   canal: string;
   origem: string;
   origemDetalhe: string | null;
+  anuncio: { id: string; titulo: string | null; campanhaId: string | null; conjuntoId: string | null } | null;
   interesse: string | null;
   tamanho: string | null;
   quantidade: number | null;

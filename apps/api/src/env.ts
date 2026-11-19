@@ -17,5 +17,8 @@ export const env = z
     ORIGEM_WEB: z.string().default('http://localhost:3000'),
     // Segredo das rotinas automáticas (cron externo). Sem ele, as rotas de rotina ficam desligadas.
     ROTINA_SEGREDO: z.string().min(16).optional(),
+    // Chave que cifra o token da Meta no banco. Sem ela, a conexão com a conta de anúncios fica desligada.
+    META_CHAVE: z.string().min(32, 'META_CHAVE precisa de pelo menos 32 caracteres').optional(),
+    META_API_VERSAO: z.string().regex(/^v\d+\.\d$/).optional(),
   })
   .parse(process.env);

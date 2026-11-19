@@ -39,12 +39,25 @@ function lerNumero(texto: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Campos das referências do tráfego. A sugestão é só ponto de partida, com a fonte: quem decide são os Sócios. */
+const REFERENCIAS_TRAFEGO = [
+  { id: 'ctrMin', nome: 'CTR do link mínimo', unidade: '%', sugestao: '1,29%', fonte: 'média de moda e vestuário no Facebook, WordStream/LocalIQ 2025' },
+  { id: 'cpcMax', nome: 'Custo por clique máximo', unidade: 'R$', sugestao: 'R$ 0,50 a R$ 1,50', fonte: 'e-commerce no Brasil, Trafius 2026' },
+  { id: 'cpmMax', nome: 'CPM máximo', unidade: 'R$', sugestao: null, fonte: null },
+  { id: 'frequenciaMax', nome: 'Frequência máxima', unidade: 'x', sugestao: '3 a 4', fonte: 'acima disso o criativo cansa, Influee' },
+  { id: 'connectRateMin', nome: 'Connect rate mínimo', unidade: '%', sugestao: null, fonte: null },
+  { id: 'cplMax', nome: 'Custo por lead máximo', unidade: 'R$', sugestao: null, fonte: null },
+  { id: 'taxaConversaMin', nome: 'Conversão clique → conversa mínima', unidade: '%', sugestao: null, fonte: null },
+  { id: 'taxaLeadMin', nome: 'Conversão conversa → lead mínima', unidade: '%', sugestao: null, fonte: null },
+] as const;
+
 export function MetasCliente({ parametros }: { parametros: Parametro[] }) {
   const [lista, setLista] = useState(parametros);
   const [editando, setEditando] = useState<Parametro | null>(null);
   const [valor, setValor] = useState('');
   const [justificativa, setJustificativa] = useState('');
   const [erro, setErro] = useState('');
+  const [refs, setRefs] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
   const [historico, setHistorico] = useState<{ parametro: Parametro; linhas: LinhaHistorico[] | null } | null>(null);
 
@@ -61,12 +74,24 @@ export function MetasCliente({ parametros }: { parametros: Parametro[] }) {
     evento.preventDefault();
     if (!editando) return;
     setErro('');
-    const novo = editando.tipo === 'texto' ? valor.trim() : lerNumero(valor);
-    if (novo === null || novo === '') return setErro('Informe o novo valor.');
+    let novo: unknown;
+    if (editando.chave === 'referencias_trafego') {
+      const obj: Record<string, number> = {};
+      for (const c of REFERENCIAS_TRAFEGO) {
+        if (!refs[c.id]?.trim()) continue;
+        const n = lerNumero(refs[c.id]);
+        if (n === null || n < 0) return setErro(`"${c.nome}" precisa ser um número.`);
+        obj[c.id] = n;
+      }
+      novo = obj;
+    } else {
+      novo = editando.tipo === 'texto' ? valor.trim() : lerNumero(valor);
+      if (novo === null || novo === '') return setErro('Informe o novo valor.');
+    }
     setSalvando(true);
     try {
       await chamar('PUT', `/parametros/${editando.chave}`, { valor: novo, justificativa });
-      setLista((atual) => atual.map((p) => (p.chave === editando.chave ? { ...p, valor: novo, atualizadoEm: new Date().toISOString() } : p)));
+      setLista((atual) => atual.map((p) => (p.chave === editando.chave ? { ...p, valor: novo as unknown, atualizadoEm: new Date().toISOString() } : p)));
       setEditando(null);
     } catch (e) {
       setErro((e as Error).message);
@@ -97,7 +122,17 @@ export function MetasCliente({ parametros }: { parametros: Parametro[] }) {
                   <strong>{p.rotulo}</strong>
                   <p className="apagado">{p.descricao}</p>
                 </div>
-                {p.tipo === 'json' ? (
+                {p.chave === 'referencias_trafego' ? (
+                  <div className="fila-acoes">
+                    <span className={`mono ${p.valor ? '' : 'apagado'}`} data-teste="valor-referencias_trafego">
+                      {p.valor ? `${Object.keys(p.valor as object).length} de ${REFERENCIAS_TRAFEGO.length} definidas` : 'A definir'}
+                    </span>
+                    <button className="botao" onClick={() => { abrir(p); setRefs(Object.fromEntries(Object.entries((p.valor ?? {}) as Record<string, number>).map(([k, v]) => [k, String(v).replace('.', ',')]))); }} data-teste="editar-referencias_trafego">
+                      {p.valor ? 'Alterar' : 'Definir'}
+                    </button>
+                    <button className="botao fantasma" onClick={() => verHistorico(p)} data-teste={`historico-${p.chave}`}>Histórico</button>
+                  </div>
+                ) : p.tipo === 'json' ? (
                   <span className="apagado">Definido na própria aba, quando ela entrar</span>
                 ) : (
                   <div className="fila-acoes">
@@ -121,6 +156,20 @@ export function MetasCliente({ parametros }: { parametros: Parametro[] }) {
       {editando && (
         <Modal titulo={editando.rotulo} fechar={() => setEditando(null)}>
           <form onSubmit={salvar} style={{ display: 'grid', gap: 14 }} noValidate>
+            {editando.chave === 'referencias_trafego' ? (
+              <>
+                <p className="secundario">Deixe em branco o que ainda não quiserem usar: a checagem fica fora da nota. As sugestões são médias de mercado, não metas da Avulte; depois de 30 dias de anúncio, o melhor é usar os números da própria conta.</p>
+                <div className="fila">
+                  {REFERENCIAS_TRAFEGO.map((c) => (
+                    <label className="campo" key={c.id}>
+                      <span>{c.nome} ({c.unidade})</span>
+                      <input value={refs[c.id] ?? ''} onChange={(e) => setRefs({ ...refs, [c.id]: e.target.value })} inputMode="decimal" data-teste={`ref-${c.id}`} />
+                      <small className="apagado" data-teste="sugestao-ref">{c.sugestao ? `Sugestão: ${c.sugestao} (${c.fonte})` : 'Sem referência pública confiável: definam pela própria conta.'}</small>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : (<>
             <p className="secundario">
               Valor atual: <span className="mono">{valorParametro(editando.tipo, editando.valor)}</span>
             </p>
@@ -133,6 +182,7 @@ export function MetasCliente({ parametros }: { parametros: Parametro[] }) {
               )}
               <small className="apagado">{DICA[editando.tipo]}</small>
             </label>
+            </>)}
             <label className="campo">
               <span>Justificativa (obrigatória, fica no histórico)</span>
               <textarea value={justificativa} onChange={(e) => setJustificativa(e.target.value)} maxLength={500} data-teste="campo-justificativa" />

@@ -7,6 +7,8 @@ import { registrarAtendimento } from './atendimento.js';
 import { registrarClientes } from './clientes.js';
 import { registrarGanhos } from './ganhos.js';
 import { registrarPainel } from './painel.js';
+import type { Buscar } from './meta.js';
+import { registrarTrafego } from './trafego.js';
 import { comoJson, type Banco } from './banco.js';
 import { ErroHttp, type LinhaAuditoria, type Pedido, type Usuario } from './http.js';
 import { metricasPara } from './metricas.js';
@@ -55,7 +57,9 @@ const dadosPessoa = z.object({
 const novaPessoa = dadosPessoa.partial().required({ nome: true, email: true, senha: true, papel: true }).omit({ ativo: true });
 const alteracaoPessoa = dadosPessoa.partial();
 
-export function criarApp({ db, jwtSegredo, origemWeb, rotinaSegredo }: { db: Banco; jwtSegredo: string; origemWeb: string; rotinaSegredo?: string }) {
+export function criarApp({ db, jwtSegredo, origemWeb, rotinaSegredo, metaChave, metaVersao, buscarMeta }: {
+  db: Banco; jwtSegredo: string; origemWeb: string; rotinaSegredo?: string; metaChave?: string; metaVersao?: string; buscarMeta?: Buscar;
+}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(cors({ origin: origemWeb }));
@@ -282,6 +286,7 @@ export function criarApp({ db, jwtSegredo, origemWeb, rotinaSegredo }: { db: Ban
   registrarGanhos(app, { db, rota, autenticar, exigir, auditar }, rotinaSegredo);
   registrarClientes(app, { db, rota, autenticar, exigir, auditar });
   registrarPainel(app, { db, rota, autenticar, exigir, auditar });
+  registrarTrafego(app, { db, rota, autenticar, exigir, auditar }, { metaChave, metaVersao, buscarMeta, rotinaSegredo });
 
   app.use((_req, _res, next) => next(new ErroHttp(404, 'Rota não encontrada.')));
 

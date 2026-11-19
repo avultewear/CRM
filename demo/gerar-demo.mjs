@@ -23,6 +23,7 @@ const PAPEIS = [
   { id: 'gerente', nome: 'Gerente', inicio: '/atendimento' },
   { id: 'vendedor', nome: 'Vendedor', inicio: '/atendimento' },
   { id: 'influenciador', nome: 'Influenciador', inicio: '/meu-espaco' },
+  { id: 'trafego', nome: 'Gestor de tráfego', inicio: '/trafego' },
 ];
 
 // ------------------------------------------------------------------ 1. Dados fictícios
@@ -61,7 +62,8 @@ async function semearDemo() {
   for (const [chave, valor] of [['meta_faturamento_mensal', 20000], ['tempo_maximo_etapa_horas', 48], ['recuperacao_tentativas', 3], ['limite_desconto_pct', 10],
     ['prolabore_pct', 10], ['comissao_vendedor_pct', 5], ['comissao_vendedor_teto', 800], ['comissao_influenciador_pct', 10], ['comissao_influenciador_teto', 500], ['prazo_troca_dias', 7],
     ['segmento_em_risco_dias', 60], ['segmento_inativo_dias', 120], ['segmento_vip_pct', 20], ['recompra_dias', 45],
-    ['meta_faturamento_anual', 240000], ['frase_motivacional', 'Cada treino conta. Cada cliente também.'],
+    ['meta_faturamento_anual', 240000], ['orcamento_anuncios_mensal', 2000],
+    ['referencias_trafego', { ctrMin: 1.29, cpcMax: 1.5, frequenciaMax: 3, taxaLeadMin: 40 }], ['frase_motivacional', 'Cada treino conta. Cada cliente também.'],
     ['metas_por_etapa', { LEAD: 70, ABORDADO: 60, LEVANTAMENTO: 60, NEGOCIACAO: 50, RECUPERACAO: 30 }]]) {
     await socio('PUT', `/parametros/${chave}`, { valor, justificativa: exemplo });
   }
@@ -204,6 +206,7 @@ async function semearDemo() {
   const banco = new pg.Client({ connectionString: BANCO });
   await banco.connect();
   await banco.query(`UPDATE oportunidade SET entrou_na_etapa_em = now() - interval '3 days' WHERE id = $1`, [bruno.id]);
+  await semearTrafego(banco);
   await banco.query(`UPDATE historico_etapa SET entrou_em = now() - interval '3 days' WHERE oportunidade_id = $1 AND saiu_em IS NULL`, [bruno.id]);
   await banco.query(`UPDATE atividade SET prazo = now() - interval '5 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [diego.id]);
   await banco.query(`UPDATE atividade SET prazo = now() + interval '2 hours' WHERE oportunidade_id = $1 AND tipo = 'FOLLOW'`, [helena.id]);
@@ -223,6 +226,80 @@ async function semearDemo() {
   }
   await banco.end();
   console.log('Dados fictícios criados.');
+}
+
+/* Conta de anúncios fictícia (só na demonstração): a estrutura, 45 dias de números por anúncio e os recortes de público,
+   no mesmo formato que a sincronização com a Meta grava. O token é fictício e não vale na Meta. */
+async function semearTrafego(banco) {
+  const { createCipheriv, createHash, randomBytes } = await import('node:crypto');
+  const chave = readFileSync(join(AQUI, '..', 'apps', 'api', '.env'), 'utf8').match(/META_CHAVE="?([^"\n]+)/)?.[1];
+  if (chave) {
+    const iv = randomBytes(12);
+    const c = createCipheriv('aes-256-gcm', createHash('sha256').update(chave).digest(), iv);
+    const dados = Buffer.concat([c.update('EAAtokenFicticioDaDemonstracao0000DEMO', 'utf8'), c.final()]);
+    const cifrado = [iv, c.getAuthTag(), dados].map((b) => b.toString('base64')).join('.');
+    const { rows: [socio] } = await banco.query(`SELECT id FROM usuario WHERE email = 'socio@avulte.teste'`);
+    const diag = [{ item: 'Token', ok: true, detalhe: 'Válido, de Usuário do sistema (demonstração).' }, { item: 'Permissões', ok: true, detalhe: 'Pode ler os anúncios (ads_read).' },
+      { item: 'Conta de anúncios', ok: true, detalhe: 'Avulte Wear (demonstração): ativa, em BRL.' }];
+    await banco.query(`INSERT INTO meta_conexao (conta_id, conta_nome, moeda, fuso, token_cifrado, conectada_por, ultimo_diagnostico, diagnosticada_em, sincronizada_em, historico_ate)
+      VALUES ('act_000000000001', 'Avulte Wear (demonstração)', 'BRL', 'America/Sao_Paulo', $1, $2, $3, now(), now(), current_date - 89)`, [cifrado, socio.id, JSON.stringify(diag)]);
+  }
+  await banco.query(`INSERT INTO anuncio_campanha (id, nome, objetivo, status, orcamento_diario) VALUES
+    ('120000001', 'Conversas WhatsApp · Coleção Running', 'OUTCOME_ENGAGEMENT', 'ACTIVE', 60),
+    ('120000002', 'Remarketing · Instagram', 'OUTCOME_ENGAGEMENT', 'ACTIVE', NULL)`);
+  await banco.query(`INSERT INTO anuncio_conjunto (id, campanha_id, nome, status, otimizacao, orcamento_diario, fase_aprendizado, publico) VALUES
+    ('230000001', '120000001', 'Mulheres 25-34 · São Paulo', 'ACTIVE', 'CONVERSATIONS', NULL, 'SUCCESS', '{"idadeMin":25,"idadeMax":34,"generos":[2],"locais":["São Paulo"],"interesses":["Corrida","Academia"],"advantage":false}'),
+    ('230000002', '120000001', 'Aberto Brasil · Advantage+', 'ACTIVE', 'CONVERSATIONS', NULL, 'LEARNING', '{"locais":["BR"],"interesses":[],"advantage":true}'),
+    ('230000003', '120000002', 'Engajou no Instagram (30 dias)', 'ACTIVE', 'CONVERSATIONS', 25, 'FAIL', '{"idadeMin":18,"idadeMax":45,"interesses":[],"advantage":false}')`);
+  const anuncios = [
+    { id: '340000001', conj: '230000001', nome: 'Regata preta · vídeo', titulo: 'A regata que não marca no treino', formato: 'VIDEO', base: 22, cpm: 19, ctr: 1.6, conv: 0.22, q: 'ABOVE_AVERAGE' },
+    { id: '340000002', conj: '230000001', nome: 'Short dupla camada · foto', titulo: 'Short dupla camada', formato: 'IMAGEM', base: 12, cpm: 21, ctr: 1.1, conv: 0.16, q: 'AVERAGE' },
+    { id: '340000003', conj: '230000002', nome: 'Kit corrida · carrossel', titulo: 'Kit corrida completo', formato: 'CARROSSEL', base: 14, cpm: 16, ctr: 0.9, conv: 0.12, q: 'AVERAGE' },
+    { id: '340000004', conj: '230000002', nome: 'Camiseta técnica · vídeo', titulo: 'Camiseta que seca rápido', formato: 'VIDEO', base: 10, cpm: 17, ctr: 1.3, conv: 0.19, q: 'AVERAGE' },
+    { id: '340000005', conj: '230000003', nome: 'Depoimento cliente · vídeo', titulo: 'O que dizem de quem treina com a Avulte', formato: 'VIDEO', base: 9, cpm: 28, ctr: 0.6, conv: 0.08, q: 'BELOW_AVERAGE_20' },
+  ];
+  for (const a of anuncios) {
+    await banco.query(`INSERT INTO anuncio (id, conjunto_id, nome, titulo, status, formato, ranking_qualidade, ranking_engajamento, ranking_conversao)
+      VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, 'AVERAGE', $7)`, [a.id, a.conj, a.nome, a.titulo, a.formato, a.q, a.q === 'ABOVE_AVERAGE' ? 'ABOVE_AVERAGE' : 'AVERAGE']);
+  }
+  const ruido = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  for (let d = 44; d >= 0; d -= 1) {
+    const { rows: [{ dia, semana }] } = await banco.query(`SELECT to_char(current_date - $1::int, 'YYYY-MM-DD') AS dia, extract(dow FROM current_date - $1::int)::int AS semana`, [d]);
+    const fimDeSemana = semana === 0 || semana === 6 ? 0.75 : 1;
+    let tot = { inv: 0, imp: 0, cli: 0, conv: 0 };
+    for (const [k, a] of anuncios.entries()) {
+      const r = ruido(d * 7 + k);
+      const inv = Math.round(a.base * (0.8 + 0.4 * r) * fimDeSemana * 100) / 100;
+      const imp = Math.round((inv / a.cpm) * 1000);
+      const cli = Math.round(imp * (a.ctr / 100) * (0.85 + 0.3 * ruido(d * 11 + k)));
+      const conv = Math.round(cli * a.conv);
+      const video = a.formato === 'VIDEO' ? Math.round(imp * 0.35) : null;
+      await banco.query(`INSERT INTO anuncio_dia (anuncio_id, dia, investimento, impressoes, alcance, cliques_link, conversas, conversas_profundas, video_plays, video_p25, video_p50, video_p75, video_p100)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [a.id, dia, inv, imp, Math.round(imp / 1.25), cli, conv, Math.round(conv * 0.55), video, video && Math.round(video * 0.52), video && Math.round(video * 0.3), video && Math.round(video * 0.17), video && Math.round(video * 0.08)]);
+      tot = { inv: tot.inv + inv, imp: tot.imp + imp, cli: tot.cli + cli, conv: tot.conv + conv };
+    }
+    const recortes = {
+      IDADE_GENERO: [['18-24|female', 0.14, 0.12], ['25-34|female', 0.38, 0.5], ['35-44|female', 0.12, 0.1], ['25-34|male', 0.2, 0.18], ['35-44|male', 0.16, 0.1]],
+      REGIAO: [['São Paulo', 0.52, 0.62], ['Rio de Janeiro', 0.18, 0.16], ['Minas Gerais', 0.14, 0.12], ['Bahia', 0.16, 0.1]],
+      POSICIONAMENTO: [['instagram|story', 0.42, 0.5], ['instagram|feed', 0.3, 0.32], ['instagram|reels', 0.18, 0.14], ['facebook|feed', 0.1, 0.04]],
+      DISPOSITIVO: [['mobile_app', 0.93, 0.97], ['desktop', 0.07, 0.03]],
+      HORARIO: [['07', 0.08, 0.06], ['12', 0.16, 0.14], ['18', 0.18, 0.18], ['20', 0.3, 0.38], ['22', 0.28, 0.24]],
+    };
+    for (const [dimensao, linhas] of Object.entries(recortes)) {
+      for (const [chave, pInv, pRes] of linhas) {
+        await banco.query(`INSERT INTO anuncio_publico_dia (dia, dimensao, chave, investimento, impressoes, cliques_link, conversas) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [dia, dimensao, chave, Math.round(tot.inv * pInv * 100) / 100, Math.round(tot.imp * pInv), Math.round(tot.cli * pRes), Math.round(tot.conv * pRes)]);
+      }
+    }
+  }
+  // Os leads de anúncio ganham o anúncio de origem (um fica sem, para a checagem aparecer).
+  const { rows: leads } = await banco.query(`SELECT id FROM oportunidade WHERE origem = 'ANUNCIO' ORDER BY criado_em`);
+  for (const [i, l] of leads.slice(1).entries()) {
+    const a = anuncios[i % 4];
+    const { rows: [s] } = await banco.query(`SELECT campanha_id FROM anuncio_conjunto WHERE id = $1`, [a.conj]);
+    await banco.query(`UPDATE oportunidade SET anuncio_id = $1, conjunto_id = $2, campanha_id = $3, anuncio_titulo = $4 WHERE id = $5`, [a.id, a.conj, s.campanha_id, a.titulo, l.id]);
+  }
 }
 
 // ------------------------------------------------------------------ 2. Retratos das telas
@@ -351,6 +428,26 @@ const EXTRAS = {
       await pagina.click(`[data-teste="${botao}"]`);
       await pagina.waitForSelector('.modal');
       sobre[chave] = await retratoDoModal(pagina);
+      await fecharTudo(pagina);
+    }
+  },
+  '/trafego': async (pagina, sobre) => {
+    const abas = await pagina.$$eval('[data-teste="publicos"] .abas-seg button', (bs) => bs.map((b) => b.textContent.trim()));
+    for (const [i, aba] of abas.entries()) {
+      await pagina.$$eval('[data-teste="publicos"] .abas-seg button', (bs, n) => bs[n].click(), i);
+      await pausa(150);
+      sobre[`troca:publicos:${aba}`] = await retratoDe(pagina, '[data-teste="publicos"]');
+    }
+    const metricas = await pagina.$$eval('[data-teste="metrica-dia"] option', (os) => os.map((o) => o.value));
+    for (const m of metricas) {
+      await pagina.select('[data-teste="metrica-dia"]', m);
+      await pausa(150);
+      sobre[`troca:dia:${m}`] = await retratoDe(pagina, '[data-teste="dia-a-dia"]');
+    }
+    if (await pagina.$('[data-teste="gasto-manual"]')) {
+      await pagina.click('[data-teste="gasto-manual"]');
+      await pagina.waitForSelector('[data-teste="salvar-gasto"]');
+      sobre['modal:gasto-manual'] = await retratoDoModal(pagina);
       await fecharTudo(pagina);
     }
   },

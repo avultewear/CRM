@@ -35,6 +35,13 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
   const [aviso, setAviso] = useState('');
   const [alvo, setAlvo] = useState<string | null>(null);
   const [erroNovo, setErroNovo] = useState('');
+  // Anúncios sincronizados da Meta, para o lead de anúncio guardar a origem (campanha, conjunto, anúncio).
+  const [origemNovo, setOrigemNovo] = useState('');
+  const [anuncios, setAnuncios] = useState<Array<{ id: string; nome: string; titulo: string | null; campanha: string; status: string | null }> | null>(null);
+  useEffect(() => {
+    if (origemNovo !== 'ANUNCIO' || anuncios) return;
+    chamar<Array<{ id: string; nome: string; titulo: string | null; campanha: string; status: string | null }>>('GET', '/trafego/anuncios').then(setAnuncios).catch(() => setAnuncios([]));
+  }, [origemNovo, anuncios]);
   const primeiraVez = useRef(true);
 
   const nomeEtapa = (id: string | null) => config.etapas.find((e) => e.id === id)?.nome ?? '';
@@ -104,6 +111,7 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
       tamanho: String(f.get('tamanho') ?? '').trim() || null,
     };
     if (gestao && f.get('vendedorId')) corpo.vendedorId = f.get('vendedorId');
+    if (f.get('anuncioId')) corpo.anuncioId = f.get('anuncioId');
     try {
       const r = await chamar<{ oportunidade: Oportunidade; clienteJaExistia: boolean; comOutraPessoa: boolean }>('POST', '/oportunidades', corpo);
       setNovo(false);
@@ -285,13 +293,23 @@ export function AtendimentoCliente({ config, inicial, vendedores, gestao, period
               </label>
               <label className="campo">
                 <span>Origem (obrigatória)</span>
-                <select name="origem" defaultValue="" required>
+                <select name="origem" defaultValue="" required onChange={(e) => setOrigemNovo(e.target.value)} data-teste="origem-lead">
                   <option value="" disabled>Escolha</option>
                   {config.origens.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
                 </select>
               </label>
             </div>
-            <label className="campo"><span>Detalhe da origem (anúncio, post, quem indicou)</span><input name="origemDetalhe" maxLength={160} /></label>
+            {origemNovo === 'ANUNCIO' && (
+              <label className="campo">
+                <span>Anúncio de origem</span>
+                <select name="anuncioId" defaultValue="" data-teste="anuncio-lead">
+                  <option value="">{anuncios === null ? 'Carregando…' : anuncios.length ? 'Não sei qual foi' : 'Nenhum anúncio sincronizado ainda'}</option>
+                  {anuncios?.map((a) => <option key={a.id} value={a.id}>{a.campanha} · {a.nome}{a.status && a.status !== 'ACTIVE' ? ' (pausado)' : ''}</option>)}
+                </select>
+                <small className="apagado">É o que permite o custo por lead e o ROAS de cada anúncio.</small>
+              </label>
+            )}
+            <label className="campo"><span>Detalhe da origem (post, quem indicou)</span><input name="origemDetalhe" maxLength={160} /></label>
             <div className="linha-campos">
               <label className="campo"><span>Produto de interesse</span><input name="interesse" maxLength={160} /></label>
               <label className="campo"><span>Tamanho</span><input name="tamanho" maxLength={20} /></label>

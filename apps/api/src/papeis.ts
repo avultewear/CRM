@@ -32,6 +32,7 @@ const MATRIZ: Record<string, Papel[]> = {
   'estoque.ver': ['SOCIO', 'GERENTE', 'VENDEDOR', 'SOCIAL_MEDIA'],
   'estoque.editar': GESTAO,
   'trafego.ver': ['SOCIO', 'GESTOR_TRAFEGO'],
+  'trafego.conectar': ['SOCIO'],
   'social.analise': ['SOCIO'],
   'social.espaco': ['SOCIO', 'SOCIAL_MEDIA'],
   'social.aprovar': GESTAO,

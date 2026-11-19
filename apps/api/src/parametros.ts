@@ -18,6 +18,7 @@ export const CATALOGO_PARAMETROS: DefParametro[] = [
   p('Metas', 'meta_faturamento_mensal', 'moeda', 'Meta de faturamento do mês', 'Usada na previsão de fechamento e no Daily.'),
   p('Metas', 'meta_faturamento_anual', 'moeda', 'Meta de faturamento do ano', 'Aparece na visão anual do Painel.'),
   p('Metas', 'orcamento_anuncios_mensal', 'moeda', 'Orçamento de anúncios do mês', 'Base do ritmo de gasto na aba Tráfego.'),
+  p('Metas', 'referencias_trafego', 'json', 'Referências do tráfego pago', 'Mínimos e máximos da auditoria de Tráfego (CTR, CPC, CPM, frequência, connect rate, custo por lead e as taxas do funil). Sem referência, a checagem não entra na nota.'),
   p('Metas', 'metas_por_etapa', 'json', 'Metas por etapa da jornada', 'Conversão esperada em cada etapa do Atendimento.'),
   p('Ganho', 'prolabore_pct', 'percentual', 'Pró-labore (% da receita de cada venda)', 'Retirada dos Sócios em cada venda confirmada.'),
   p('Ganho', 'prolabore_divisao_fundador_pct', 'percentual', 'Parte do Fundador no pró-labore (%)', 'O restante fica com o Cofundador.'),
@@ -46,6 +47,12 @@ const configDaily = z.array(z.object({ id: z.enum(BLOCOS_DAILY), minutos: z.numb
 /** Ordem e tempo dos blocos do Daily. Ex.: [{"id":"RESULTADO","minutos":3}, …] */
 export const validarDailyConfig = (valor: unknown) => configDaily.safeParse(valor);
 const metasPorEtapa = z.record(z.enum(['LEAD', 'ABORDADO', 'LEVANTAMENTO', 'NEGOCIACAO', 'RECUPERACAO']), z.number().min(0).max(100));
+const referenciasTrafego = z.object({
+  ctrMin: z.number().min(0).max(100), cpcMax: z.number().min(0), cpmMax: z.number().min(0), frequenciaMax: z.number().min(1).max(50),
+  connectRateMin: z.number().min(0).max(100), cplMax: z.number().min(0), taxaConversaMin: z.number().min(0).max(100), taxaLeadMin: z.number().min(0).max(100),
+}).partial().strict();
+/** Referências da aba Tráfego (todas opcionais). Ex.: {"ctrMin": 1.3, "cpcMax": 1.5, "frequenciaMax": 3} */
+export const validarReferenciasTrafego = (valor: unknown) => referenciasTrafego.safeParse(valor);
 /** Conversão esperada (%) por etapa. Ex.: {"LEAD": 60, "ABORDADO": 50} */
 export const validarMetasPorEtapa = (valor: unknown) => metasPorEtapa.safeParse(valor);
 
@@ -71,6 +78,8 @@ export function validarParametro(chave: string, valor: unknown): { ok: boolean; 
     case 'json':
       if (chave === 'daily_config') return validarDailyConfig(valor).success ? { ok: true }
         : { ok: false, erro: 'Informe os blocos do Daily na ordem, cada um com os minutos. Ex.: [{"id":"RESULTADO","minutos":3}]' };
+      if (chave === 'referencias_trafego') return validarReferenciasTrafego(valor).success ? { ok: true }
+        : { ok: false, erro: 'Use só estes campos, com números: ctrMin, cpcMax, cpmMax, frequenciaMax, connectRateMin, cplMax, taxaConversaMin, taxaLeadMin.' };
       if (chave === 'metas_por_etapa') return validarMetasPorEtapa(valor).success ? { ok: true }
         : { ok: false, erro: 'Informe a conversão esperada (0 a 100) por etapa. Ex.: {"LEAD": 60, "ABORDADO": 50}' };
       return typeof valor === 'object' && valor !== null ? { ok: true } : { ok: false, erro: 'Informe uma estrutura válida.' };

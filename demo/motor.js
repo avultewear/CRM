@@ -75,10 +75,23 @@
     });
   }
 
+  /** Troca um cartão da tela pelo retrato dele em outro estado (aba de público, métrica do dia a dia). */
+  function trocar(seletor, chave) {
+    var el = palco.querySelector(seletor);
+    var html = (D.sobre[papel] || {})[chave];
+    if (!el || !html) { avisar('Este detalhe não está na demonstração.'); return; }
+    el.outerHTML = html;
+  }
+
   function donoDoCartao(el) { return el.closest('[data-teste="influenciador"]').getAttribute('data-nome'); }
 
   // De cima para baixo: o primeiro seletor que casar com o clique decide o que abre.
   var GATILHOS = [
+    ['[data-dias]', function () { avisar('Na demonstração, o período fica nos últimos 30 dias. No sistema, 7, 30, 90 dias ou as datas que quiser.'); }],
+    ['[data-teste="publicos"] .abas-seg button', function (el) { trocar('[data-teste="publicos"]', 'troca:publicos:' + el.textContent.trim()); }],
+    ['[data-teste="gasto-manual"]', function () { abrirSobre('modal:gasto-manual'); }],
+    ['[data-teste="sincronizar"]', function () { avisar('No sistema publicado, puxa na hora os números da Meta (a rotina também puxa sozinha todo dia).'); }],
+    ['[data-teste="diagnosticar"]', function () { avisar('No sistema publicado, confere o token, as permissões e a conta na Meta e mostra o resultado na conexão.'); }],
     ['[data-teste="card-avancar"]', function () { avisar('Avançar só passa para a etapa seguinte, e só com o critério cumprido. ' + NAO_GRAVA); }],
     ['[data-teste="card"]', function (el) { abrirSobre('lead:' + el.getAttribute('data-nome')); }],
     ['[data-teste="novo-lead"]', function () { abrirSobre('modal:novo-lead'); }],
@@ -135,6 +148,7 @@
   document.addEventListener('click', function (evento) {
     var alvo = evento.target;
     if (alvo.closest('#demo-barra')) return;
+    if (alvo.closest('select, option')) return; // listas de escolha funcionam normalmente
 
     // Fechar: clique no véu, ou botões Fechar e Cancelar.
     if (sobrepostos().length) {
@@ -166,6 +180,11 @@
     evento.preventDefault();
     if (atual === 'entrada') { mostrar(D.inicio[papel]); return; }
     avisar(NAO_GRAVA);
+  }, true);
+
+  document.addEventListener('change', function (evento) {
+    var lista = evento.target.closest && evento.target.closest('[data-teste="metrica-dia"]');
+    if (lista && palco.contains(lista)) trocar('[data-teste="dia-a-dia"]', 'troca:dia:' + lista.value);
   }, true);
 
   document.addEventListener('keydown', function (evento) {

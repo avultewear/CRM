@@ -104,8 +104,9 @@ try {
   const lucroAntes = reais(await metrica(socio, 'lucro'));
   registrar('Lucro = receita − comissões − custos do mês', lucroAntes === Math.round((Number(r.receita) - Number(g.com)) * 100) / 100, String(lucroAntes));
   registrar('O lucro avisa o que ainda falta na conta', (await texto(socio, '[data-teste="obs-lucro"]')).includes('custo das peças'));
-  registrar('Indicadores de tráfego aparecem com "—" e o aviso da etapa 7', (await metrica(socio, 'roas')) === '—'
-    && (await texto(socio, '[data-teste="indicador"][data-metrica="roas"]')).includes('etapa 7'));
+  // Sem gasto com anúncios (nem da Meta, nem digitado), o ROAS fica em "—" (desde a etapa 7 não há mais aviso de "etapa futura").
+  registrar('Sem gasto com anúncios, o ROAS aparece com "—" (sem palpite)', (await metrica(socio, 'roas')) === '—'
+    && !(await texto(socio, '[data-teste="indicador"][data-metrica="roas"]')).includes('etapa 7'));
   const pagina = await socio.content();
   registrar('Nenhum "−100%" no Painel', !/[−-]100(,0)?%/.test(pagina));
   await foto(socio, '50-painel-graficos');

@@ -134,8 +134,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cabecalho-aba p { color: var(--tinta-2); }
 .cabecalho-aba small { color: var(--tinta-apagada); }
 .cabecalho-linha { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cabecalho-linha > * { min-width: 0; max-width: 100%; }
 .cartao { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 16px; box-shadow: var(--sombra); min-width: 0; }
 .cartao > h2 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.cartao > .cabecalho-linha h2 { font-size: 15px; font-weight: 600; }
 .grade-indicadores { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
 .indicador { display: grid; gap: 4px; text-align: left; cursor: pointer; }
 .indicador:hover { border-color: var(--borda-forte); }
@@ -243,9 +245,9 @@ a.chip { color: inherit; text-decoration: none; }
 .compra .botao { flex-shrink: 0; white-space: nowrap; }
 
 /* Gráficos (etapa 6) */
-.cartao-grafico { display: grid; gap: 12px; min-width: 0; }
+.cartao-grafico { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
 .cartao-grafico h2 { font-size: 15px; }
-.acoes-grafico { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.acoes-grafico { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; }
 .grafico { position: relative; width: 100%; min-width: 0; overflow-x: auto; }
 .grafico svg { display: block; overflow: visible; }
 .grafico .grade { stroke: var(--borda); stroke-width: 1; }
@@ -306,3 +308,33 @@ details.cartao > summary { cursor: pointer; list-style: none; display: flex; gap
 details.cartao > summary::-webkit-details-marker { display: none; }
 details.cartao > summary::before { content: '▸'; color: var(--tinta-apagada); }
 details.cartao[open] > summary::before { content: '▾'; }
+/* Tráfego (etapa 7) */
+.par-barras { display: grid; grid-template-columns: minmax(90px, 32%) 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.par-barras .trilhos { display: grid; gap: 3px; }
+.par-barras .trilho { display: grid; grid-template-columns: 1fr 52px; align-items: center; gap: 6px; }
+.par-barras .trilho > span { display: block; height: 10px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.par-barras .trilho b { font-size: 11px; font-weight: 500; color: var(--tinta-2); }
+.calor table { border-collapse: separate; border-spacing: 3px; }
+.calor th { font-size: 11px; font-weight: 500; color: var(--tinta-apagada); text-align: right; padding-right: 6px; }
+.calor td { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--borda); }
+.calor td.vazio { border-color: transparent; }
+.calor td.media { width: auto; border: 0; padding-left: 10px; font-size: 11px; color: var(--tinta-2); }
+.nota-auditoria { display: grid; grid-template-columns: auto 1fr; gap: 16px 24px; align-items: center; }
+.nota-auditoria .nota { font-size: 48px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.nota-auditoria .nota small { font-size: 16px; color: var(--tinta-apagada); font-weight: 500; }
+.criativos { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.criativo { display: grid; gap: 8px; align-content: start; padding: 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--fundo); font-size: 13px; }
+.criativo .miniatura { aspect-ratio: 1 / 1; border-radius: 8px; background: var(--borda); display: grid; place-items: center; overflow: hidden; color: var(--tinta-apagada); font-size: 12px; }
+.criativo .miniatura img { width: 100%; height: 100%; object-fit: cover; }
+.criativo .numeros { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.criativo .numeros span { display: flex; justify-content: space-between; gap: 6px; }
+.retencao { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: end; height: 54px; }
+.retencao span { display: grid; align-content: end; gap: 2px; height: 100%; font-size: 10px; text-align: center; color: var(--tinta-apagada); }
+.retencao i { display: block; background: var(--serie-1); border-radius: 3px 3px 0 0; }
+.achado { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--borda); }
+.achado:last-child { border-bottom: 0; }
+.achado p { margin: 0; }
+.achado > .estado { align-self: start; justify-self: start; min-width: 92px; }
+.passos-token { display: grid; gap: 6px; padding-left: 18px; margin: 0; }
+.destaque-numero { display: grid; gap: 2px; padding: 12px; border-radius: 10px; border: 1px solid var(--borda); background: var(--fundo); }
+.destaque-numero .valor { font-size: 26px; font-weight: 600; }

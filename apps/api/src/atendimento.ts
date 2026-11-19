@@ -133,6 +133,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     const { proxima, falta } = oQueFalta(o);
     return {
       id: o.id, etapa: o.etapa, situacao: o.situacao, tipo: o.tipo, canal: o.canal, origem: o.origem, origemDetalhe: o.origemDetalhe,
+      anuncio: o.anuncioId ? { id: o.anuncioId, titulo: o.anuncioTitulo, campanhaId: o.campanhaId, conjuntoId: o.conjuntoId } : null,
       interesse: o.interesse, tamanho: o.tamanho, quantidade: o.quantidade, valor: numero(o.valor), cupom: o.cupom,
       linkEnviadoEm: o.linkEnviadoEm, temperatura: o.temperatura, etiquetas: o.etiquetas, primeiraRespostaEm: o.primeiraRespostaEm,
       motivoPerda: o.motivoPerda, destinoPerda: o.destinoPerda, tentativasRecuperacao: o.tentativasRecuperacao,
@@ -278,10 +279,22 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     interesse: z.string().trim().max(160).nullable().optional(),
     tamanho: z.string().trim().max(20).nullable().optional(),
     vendedorId: z.string().regex(UUID).nullable().optional(),
+    anuncioId: z.string().regex(/^\d{3,30}$/, 'Anúncio inválido.').nullable().optional(),
   }).strict();
+
+  /** O lead de anúncio guarda campanha, conjunto, anúncio e título (para o custo por lead e o ROAS por anúncio). */
+  async function dadosDoAnuncio(anuncioId: string | null | undefined, origem: string | undefined) {
+    if (!anuncioId) return {};
+    if (origem !== undefined && origem !== 'ANUNCIO') throw new ErroHttp(400, 'Só lead com origem Anúncio tem anúncio de origem.');
+    const a = await db.selectFrom('anuncio as a').innerJoin('anuncioConjunto as s', 's.id', 'a.conjuntoId')
+      .select(['a.id', 'a.titulo', 'a.nome', 's.id as conjuntoId', 's.campanhaId']).where('a.id', '=', anuncioId).executeTakeFirst();
+    if (!a) throw new ErroHttp(400, 'Anúncio não encontrado. Sincronize a conta de anúncios ou escolha outro.');
+    return { anuncioId: a.id, conjuntoId: a.conjuntoId, campanhaId: a.campanhaId, anuncioTitulo: a.titulo ?? a.nome };
+  }
 
   app.post('/oportunidades', ...ver, rota(async (req, res) => {
     const dados = novoLead.parse(req.body);
+    const doAnuncio = await dadosDoAnuncio(dados.anuncioId, dados.origem);
     const telefone = normalizarTelefone(dados.telefone);
     if (!telefone) throw new ErroHttp(400, 'Telefone inválido. Informe o DDD e o número.');
     const quando = new Date();
@@ -308,7 +321,7 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
       }
 
       const o = await trx.insertInto('oportunidade').values({
-        clienteId: c.id, vendedorId, canal: dados.canal, origem: dados.origem, origemDetalhe: dados.origemDetalhe ?? null,
+        clienteId: c.id, vendedorId, canal: dados.canal, origem: dados.origem, origemDetalhe: dados.origemDetalhe ?? null, ...doAnuncio,
         interesse: dados.interesse || null, tamanho: dados.tamanho || null, entrouNaEtapaEm: quando, criadoEm: quando,
       }).returningAll().executeTakeFirstOrThrow();
       await trx.insertInto('historicoEtapa').values({ oportunidadeId: o.id, etapaAnterior: null, etapaNova: 'LEAD', entrouEm: quando, autorId: req.usuario.id }).execute();
@@ -369,14 +382,20 @@ export function registrarAtendimento(app: Express, { db, rota, autenticar, exigi
     etiquetas: z.array(z.string().trim().min(1).max(30)).max(10),
     origemDetalhe: z.string().trim().max(160).nullable(),
     vendedorId: z.string().regex(UUID),
+    anuncioId: z.string().regex(/^\d{3,30}$/, 'Anúncio inválido.').nullable(),
   }).partial().strict();
 
   app.patch('/oportunidades/:id', ...ver, rota(async (req, res) => {
     const { o, c } = await carregar(req.params.id, req.usuario);
-    const dados = edicao.parse(req.body);
+    const { anuncioId, ...dados } = edicao.parse(req.body);
     if (dados.vendedorId !== undefined && !veTodos(req.usuario)) throw new ErroHttp(403, 'Só a gestão passa um lead para outra pessoa.');
     const mudancas: Record<string, unknown> = {};
     const linhas: LinhaAuditoria[] = [];
+    if (anuncioId !== undefined && anuncioId !== o.anuncioId) {
+      const doAnuncio = anuncioId === null ? { anuncioId: null, conjuntoId: null, campanhaId: null, anuncioTitulo: null } : await dadosDoAnuncio(anuncioId, o.origem);
+      Object.assign(mudancas, doAnuncio);
+      linhas.push({ entidade: 'oportunidade', entidadeId: o.id, acao: 'alterar', campo: 'anuncioId', de: o.anuncioId, para: anuncioId, autorId: req.usuario.id });
+    }
     for (const [campo, novoBruto] of Object.entries(dados)) {
       const novo = novoBruto === '' ? null : novoBruto;
       const bruto = o[campo as keyof Oportunidade];

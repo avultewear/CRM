@@ -8,6 +8,7 @@ import { hojeEmBrasilia, parametroNumero } from './ganhos.js';
 import { ErroHttp, type Ferramentas, type Usuario } from './http.js';
 import { METRICAS } from './metricas.js';
 import { pode } from './papeis.js';
+import { numerosDoTrafego } from './trafego.js';
 import { validarDailyConfig, validarMetasPorEtapa } from './parametros.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,14 +58,13 @@ export const CATEGORIAS_CUSTO = [
 ] as const;
 
 /** Indicadores que dependem de etapas que ainda não existem: aparecem com "—" e o aviso. */
-const PENDENTES: Record<string, string> = {
-  gasto_anuncios: 'entra com o Tráfego (etapa 7)', roas: 'entra com o Tráfego (etapa 7)', custo_por_lead: 'entra com o Tráfego (etapa 7)',
-  custo_por_lead_qualificado: 'entra com o Tráfego (etapa 7)', cac: 'entra com o Tráfego (etapa 7)',
-};
+const PENDENTES: Record<string, string> = {};
+/** Números de tráfego são da conta inteira: com o filtro de vendedor, aparecem com "—". */
+const DA_CONTA = new Set(['gasto_anuncios', 'roas', 'custo_por_lead', 'custo_por_lead_qualificado', 'cac']);
 const ORDEM_INDICADORES = ['receita', 'pro_labore', 'lucro', 'comissao_mes', 'ticket_medio', 'comissoes_pagas', 'gasto_anuncios', 'roas', 'custo_por_lead',
   'custo_por_lead_qualificado', 'conversao_lead_venda', 'conversao_qualificado_venda', 'taxa_recompra', 'ltv', 'cac', 'taxa_troca'];
 /** Somas de dinheiro projetam o fechamento; taxas e médias não. */
-const PROJETA = new Set(['receita', 'pro_labore', 'lucro', 'comissao_mes', 'comissoes_pagas']);
+const PROJETA = new Set(['receita', 'pro_labore', 'lucro', 'comissao_mes', 'comissoes_pagas', 'gasto_anuncios']);
 
 export function registrarPainel(app: Express, { db, rota, autenticar, exigir, auditar }: Ferramentas): void {
   const painel = [autenticar, exigir('painel.ver')] as const;
@@ -113,9 +113,12 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
   }
 
   async function numeros(inicio: Date, fim: Date, mes: string, vendedorId?: string) {
-    const [vendas, gerados, pagos, custos, convLead, convQualif, troca] = await Promise.all([
+    const desde = diaDe(inicio);
+    const ate = somarDias(diaDe(fim), -1);
+    const [vendas, gerados, pagos, custos, convLead, convQualif, troca, trafego, aquisicao] = await Promise.all([
       vendasValidas(inicio, fim, vendedorId), ganhosEntre('criadoEm', inicio, fim, vendedorId), ganhosEntre('pagaEm', inicio, fim, vendedorId),
       custosDoMes(mes), conversao(inicio, fim, 'LEAD', vendedorId), conversao(inicio, fim, 'LEVANTAMENTO', vendedorId), taxaTroca(inicio, fim),
+      numerosDoTrafego(db, desde, ate), custoDeAquisicao(inicio, fim),
     ]);
     const receita = centavos(vendas.reduce((s, v) => s + Number(v.valor), 0));
     const soma = (l: Array<{ valor: number }>) => centavos(l.reduce((s, g) => s + g.valor, 0));
@@ -127,13 +130,32 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
       pro_labore: soma(gerados.filter((g) => g.tipo === 'PRO_LABORE')),
       comissao_mes: comissoes,
       comissoes_pagas: soma(pagos.filter((g) => g.tipo !== 'PRO_LABORE')),
-      // Lucro sem o custo das peças por venda (etapa 2) e sem os anúncios (etapa 7): lance a produção como custo do mês.
-      lucro: vendas.length || custos ? centavos(receita - comissoes - custos) : null,
+      // Lucro sem o custo das peças por venda (entra com o estoque, etapa 2): lance a produção como custo do mês.
+      lucro: vendas.length || custos || trafego.gasto_anuncios ? centavos(receita - comissoes - custos - (trafego.gasto_anuncios ?? 0)) : null,
       custos,
+      anuncios: trafego.gasto_anuncios,
+      ...(vendedorId ? {} : {
+        gasto_anuncios: trafego.gasto_anuncios, roas: trafego.roas, custo_por_lead: trafego.custo_por_lead, custo_por_lead_qualificado: trafego.custo_por_lead_qualificado,
+        // CAC = (anúncios + comissões de influenciadores + peças enviadas) ÷ clientes novos (ficha da métrica).
+        cac: aquisicao.clientesNovos && (trafego.gasto_anuncios !== null || aquisicao.influenciadores || aquisicao.pecas)
+          ? centavos(((trafego.gasto_anuncios ?? 0) + aquisicao.influenciadores + aquisicao.pecas) / aquisicao.clientesNovos) : null,
+      }),
       conversao_lead_venda: convLead,
       conversao_qualificado_venda: convQualif,
       taxa_troca: troca,
     };
+  }
+
+  async function custoDeAquisicao(inicio: Date, fim: Date) {
+    const [influ, pecas, primeiras] = await Promise.all([
+      db.selectFrom('ganho').select((eb) => eb.fn.sum<string>('valor').as('t')).where('tipo', '=', 'COMISSAO_INFLUENCIADOR').where('situacao', '!=', 'CANCELADA')
+        .where('criadoEm', '>=', inicio).where('criadoEm', '<', fim).executeTakeFirst(),
+      db.selectFrom('pecaEnviada').select((eb) => eb.fn.sum<string>('custo').as('t')).where('enviadaEm', '>=', diaDe(inicio)).where('enviadaEm', '<', diaDe(fim)).executeTakeFirst(),
+      db.selectFrom('vendaDireta').select('clienteId').select((eb) => eb.fn.min('decididaEm').as('primeira'))
+        .where('situacao', '=', 'CONFIRMADA').where('devolvidaEm', 'is', null).groupBy('clienteId').execute(),
+    ]);
+    const novos = primeiras.filter((p) => p.primeira && (p.primeira as Date) >= inicio && (p.primeira as Date) < fim).length;
+    return { influenciadores: Number(influ?.t ?? 0), pecas: Number(pecas?.t ?? 0), clientesNovos: novos };
   }
 
   const lerMes = (texto: unknown) => {
@@ -163,13 +185,14 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
           : centavos(compras.reduce((s, c) => s + c.total, 0) / compras.length);
         return { id, nome: ficha.nome, unidade: ficha.unidade, melhorQuando: ficha.melhorQuando, valor, anterior: null, variacaoPct: null, projecao: null, janela: 'desde a primeira venda' };
       }
+      if (vendedorId && DA_CONTA.has(id)) return { id, nome: ficha.nome, unidade: ficha.unidade, melhorQuando: ficha.melhorQuando, valor: null, anterior: null, variacaoPct: null, projecao: null, janela: 'da conta inteira: tire o filtro de vendedor' };
       const valor = valorDe(id, atual);
       const ant = valorDe(id, anterior);
       return {
         id, nome: ficha.nome, unidade: ficha.unidade, melhorQuando: ficha.melhorQuando, valor, anterior: ant,
         variacaoPct: variacaoPct(valor, ant) === null ? null : Math.round(variacaoPct(valor, ant)! * 10) / 10,
         projecao: p.emAndamento && PROJETA.has(id) && valor !== null ? centavos(projecaoFechamento(valor, p.diasCorridos, p.diasDoMes)!) : null,
-        ...(id === 'lucro' ? { observacao: 'Sem o custo das peças por venda (entra com o estoque, etapa 2) e sem os anúncios (etapa 7).' } : {}),
+        ...(id === 'lucro' ? { observacao: 'Já desconta os anúncios; ainda sem o custo das peças por venda (entra com o estoque, etapa 2).' } : {}),
       };
     });
     res.json({ mes, emAndamento: p.emAndamento, comparadoCom: { inicio: diaDe(p.anterior.inicio), fim: somarDias(diaDe(p.anterior.fim), -1) }, indicadores });
@@ -376,10 +399,15 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
           taxaRecompra: compras.length ? pct(compras.filter((c) => c.compras >= 2).length, compras.length) : null,
           emRisco: limites.emRiscoDias === null ? null : compras.filter((c) => segmentos.get(c.clienteId) === 'EM_RISCO').length,
         },
-        marketing: { vendasComCupom: Number(cuponsMes.n), trafego: 'entra na etapa 7', social: 'entra na etapa 8' },
+        marketing: {
+          vendasComCupom: Number(cuponsMes.n), social: 'entra na etapa 8',
+          leadsDeAnuncio: (await db.selectFrom('oportunidade').select((eb) => eb.fn.countAll<string>().as('n')).where('origem', '=', 'ANUNCIO').where('situacao', '!=', 'DESCARTADA')
+            .where('criadoEm', '>=', p.inicio).where('criadoEm', '<', p.fim).executeTakeFirstOrThrow()).n,
+          ...(cifras ? { gastoAnuncios: (await numerosDoTrafego(db, `${p.mes}-01`, diaDe(new Date()))).gasto_anuncios, orcamentoAnuncios: await parametroNumero(db, 'orcamento_anuncios_mensal') } : {}),
+        },
         ...(cifras ? { financeiro: {
           aPagar: centavos(aPagar.reduce((s, g) => s + Number(g.valor), 0)), custosDoMes: custos,
-          lucro: vendas.length || custos ? centavos(receita - centavos(proLabore.filter((g) => g.tipo !== 'PRO_LABORE').reduce((s, g) => s + g.valor, 0)) - custos) : null,
+          lucro: (await numeros(p.inicio, p.fim, p.mes)).lucro,
         } } : {}),
         porOrigem: [...vendas.reduce((m, v) => m.set(v.origem, centavos((m.get(v.origem) ?? 0) + Number(v.valor))), new Map<string, number>())]
           .map(([origem, valor]) => ({ origem, receita: valor })).sort((a, b) => b.receita - a.receita),
@@ -404,7 +432,7 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
     const p = periodoDoMes(hoje.slice(0, 7));
     const [blocos, meta, vendasMes, vendasOntem, leadsOntem, abertas, atividades, pessoas, aConfirmar, trocas, comissoes, recuperadosOntem, compras, limites, reuniaoAberta] = await Promise.all([
       blocosDoDaily(), parametroNumero(db, 'meta_faturamento_mensal'), vendasValidas(p.inicio, p.fim), vendasValidas(ontem.inicio, ontem.fim),
-      db.selectFrom('oportunidade').select(['id', 'vendedorId', 'criadoEm', 'primeiraRespostaEm']).where('criadoEm', '>=', ontem.inicio).where('criadoEm', '<', ontem.fim).execute(),
+      db.selectFrom('oportunidade').select(['id', 'vendedorId', 'criadoEm', 'primeiraRespostaEm', 'origem']).where('criadoEm', '>=', ontem.inicio).where('criadoEm', '<', ontem.fim).execute(),
       db.selectFrom('oportunidade').select(['id', 'etapa', 'vendedorId', 'primeiraRespostaEm', 'linkEnviadoEm']).where('situacao', '=', 'ABERTA').execute(),
       db.selectFrom('atividade').select(['id', 'tipo', 'titulo', 'prazo', 'responsavelId', 'oportunidadeId', 'sequencia', 'bloco']).where('status', '=', 'ABERTA').execute(),
       db.selectFrom('usuario').select(['id', 'nome', 'vende']).where('ativo', '=', true).execute(),
@@ -414,6 +442,9 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
       db.selectFrom('historicoEtapa').select('oportunidadeId').where('etapaAnterior', '=', 'RECUPERACAO').where('entrouEm', '>=', ontem.inicio).where('entrouEm', '<', ontem.fim).execute(),
       resumoDeCompras(db), lerLimites(db),
       db.selectFrom('reuniao').select(['id', 'modo', 'iniciadaEm', 'tratados']).where('encerradaEm', 'is', null).executeTakeFirst(),
+    ]);
+    const [trafegoOntem, trafegoMes, orcamento] = await Promise.all([
+      numerosDoTrafego(db, somarDias(hoje, -1), somarDias(hoje, -1)), numerosDoTrafego(db, `${hoje.slice(0, 7)}-01`, hoje), parametroNumero(db, 'orcamento_anuncios_mensal'),
     ]);
     const nome = (id: string | null) => pessoas.find((u) => u.id === id)?.nome ?? '—';
     const receitaMes = centavos(vendasMes.reduce((s, v) => s + Number(v.valor), 0));
@@ -453,7 +484,11 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
         n('Negociações sem follow', negociacoesSemFollow.length, { porPessoa: porPessoa(negociacoesSemFollow) }),
         n('Levantamentos sem contato', levantamentosSemContato.length, { porPessoa: porPessoa(levantamentosSemContato) }),
       ] },
-      TRAFEGO: { numeros: [pendente('Gasto de ontem contra o planejado', 'etapa 7'), pendente('Custo por lead', 'etapa 7'), pendente('ROAS do mês', 'etapa 7')] },
+      TRAFEGO: { numeros: cifras ? [
+        n('Gasto de ontem', trafegoOntem.gasto_anuncios, { unidade: 'R$', ajuda: orcamento === null ? 'sem orçamento do mês em Metas' : `planejado R$ ${(orcamento / p.diasDoMes).toFixed(2).replace('.', ',')} por dia` }),
+        n('Custo por lead (mês)', trafegoMes.custo_por_lead, { unidade: 'R$' }),
+        n('ROAS do mês', trafegoMes.roas === null ? null : `${trafegoMes.roas.toLocaleString('pt-BR')}x`),
+      ] : [n('Leads de anúncio ontem', leadsOntem.filter((l) => l.origem === 'ANUNCIO').length), n('Gasto, custo por lead e ROAS', null, { ajuda: 'só para os Sócios e o gestor de tráfego' })] },
       SOCIAL: { numeros: [pendente('Posts de ontem contra o planejado', 'etapa 8'), pendente('Posts de hoje', 'etapa 8'), pendente('Leads dos posts', 'etapa 8')] },
       CLIENTES: { numeros: [
         pendente('Carrinhos abandonados sem contato', 'etapa 2'),
@@ -570,8 +605,8 @@ export function registrarPainel(app: Express, { db, rota, autenticar, exigir, au
       mes, categorias: CATEGORIAS_CUSTO,
       custos: linhas.map((l) => ({ ...l, valor: Number(l.valor) })),
       totalPorCategoria: CATEGORIAS_CUSTO.map((c) => ({ categoria: c.id, total: centavos(linhas.filter((l) => l.categoria === c.id && !l.anuladoEm).reduce((s, l) => s + Number(l.valor), 0)) })).filter((c) => c.total > 0),
-      conta: { receita: numerosMes.receita ?? 0, comissoes: numerosMes.comissao_mes, custos: numerosMes.custos, lucro: numerosMes.lucro,
-        observacao: 'Ainda sem o custo das peças por venda (entra com o estoque, etapa 2) e sem os anúncios (etapa 7). Até lá, lance a produção como custo do mês.' },
+      conta: { receita: numerosMes.receita ?? 0, comissoes: numerosMes.comissao_mes, anuncios: numerosMes.anuncios, custos: numerosMes.custos, lucro: numerosMes.lucro,
+        observacao: 'Ainda sem o custo das peças por venda (entra com o estoque, etapa 2). Até lá, lance a produção como custo do mês.' },
     });
   }));
 
